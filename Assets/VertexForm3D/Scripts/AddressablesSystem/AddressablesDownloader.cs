@@ -44,7 +44,7 @@ public class AddressablesDownloader : MonoBehaviour
         Application.targetFrameRate = 75;
 #endif
 
-        if (!ProjectManager.instance.settingsUI.onlyLocalBundles)
+        if (ProjectManager.instance.settingsUI.onlyLocalBundles)
         {
             Addressables.InitializeAsync();
             isCatelogUpdated = true;
