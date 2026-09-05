@@ -73,3 +73,11 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 Assets/Photon/Fusion/Resources/PhotonAppSettings.asset
 Assets/VertexForm3D/Scripts/Editor/Vertexform3d Editor/VertexForm3DPackageExporter.cs
+
+# UMA 3.0.2 vendor content. Install locally from the pinned UMA checkout;
+# keep generic integration in com.vertexform3d.gha and custom UMA support in
+# com.vertexform3d.gha.uma. The UMA vendor trees themselves are never committed.
+/Assets/UMA/
+/Assets/UMA.meta
+/Assets/SourceShaders/
+/Assets/SourceShaders.meta

@@ -1,0 +1,25 @@
+{
+  "name": "VertexForm.GHA.UMA.Runtime",
+  "rootNamespace": "GHA.UMA",
+  "references": [
+    "VertexForm.GHA.Runtime",
+    "UMA_Core",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [
+],
+"excludePlatforms": [
+],
+"allowUnsafeCode": false,
+"overrideReferences": false,
+"precompiledReferences": [
+],
+"autoReferenced": true,
+"defineConstraints": [
+  "VERTEXFORM_GHA_UMA"
+],
+"versionDefines": [
+],
+"noEngineReferences": false
+}

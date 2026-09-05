@@ -1,0 +1,316 @@
+diff --git a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarInputConverter.cs b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarInputConverter.cs
+index 0cac6440..c0a87e5e 100644
+--- a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarInputConverter.cs
++++ b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarInputConverter.cs
+@@ -33,13 +33,21 @@ namespace VertexFormCore
+ 
+         [Header("Camera Offset (adjusts Y when sitting)")]
+         [SerializeField] private Transform cameraOffset;
+-        private float _savedCameraOffsetY;
+-        private bool _wasSitting;
++        private Vector3 _savedCameraOffsetLocalPosition;
++        private bool _hasSavedCameraOffset;
+ 
+         void Start()
+         {
++            if (playerNetworkSetup != null)
++                playerNetworkSetup.SittingStateChanged += OnSittingStateChanged;
++        }
+ 
++        private void OnDestroy()
++        {
++            if (playerNetworkSetup != null)
++                playerNetworkSetup.SittingStateChanged -= OnSittingStateChanged;
+         }
++
+         void Update()
+         {
+             if (networkObject != null)
+@@ -52,15 +60,6 @@ namespace VertexFormCore
+ 
+             bool isSitting = playerNetworkSetup != null && playerNetworkSetup.IsSitting;
+ 
+-            if (cameraOffset != null)
+-            {
+-                if (isSitting && !_wasSitting)
+-                    _savedCameraOffsetY = cameraOffset.localPosition.y;
+-                else if (!isSitting && _wasSitting)
+-                    cameraOffset.localPosition = new Vector3(cameraOffset.localPosition.x, _savedCameraOffsetY, cameraOffset.localPosition.z);
+-            }
+-            _wasSitting = isSitting;
+-
+             if (ProjectManager.instance.platforms.IsVrStylePlatform())
+             {
+                 Vector3 horizontalOffset = XRHead.TransformDirection(new Vector3(headPositionOffsetVR.x, 0, headPositionOffsetVR.z));
+@@ -71,6 +70,8 @@ namespace VertexFormCore
+                     {
+                         AdjustCameraOffsetForSitting(headPositionOffsetVR.y);
+                         MainAvatarTransform.position = Vector3.Lerp(MainAvatarTransform.position, new Vector3(XRHead.position.x, XRHead.position.y + headPositionOffsetVR.y, XRHead.position.z), 0.5f);
++                        AvatarHead.rotation = Quaternion.Lerp(AvatarHead.rotation, XRHead.rotation, 0.5f);
++                        AvatarBody.rotation = Quaternion.Euler(0f, playerNetworkSetup.transform.rotation.eulerAngles.y, 0f);
+                     }
+                     else
+                     {
+@@ -107,8 +108,8 @@ namespace VertexFormCore
+                     {
+                         AdjustCameraOffsetForSitting(headPositionOffsetDesktop.y);
+                         MainAvatarTransform.position = Vector3.Lerp(MainAvatarTransform.position, new Vector3(XRHead.position.x, XRHead.position.y + headPositionOffsetDesktop.y, XRHead.position.z), 0.5f);
+-                        AvatarHead.rotation = new Quaternion(0, 0, 0, 1);
+-                        AvatarBody.rotation = new Quaternion(0, 0, 0, 1);
++                        AvatarHead.rotation = Quaternion.Lerp(AvatarHead.rotation, XRHead.rotation, 0.5f);
++                        AvatarBody.rotation = Quaternion.Euler(0f, playerNetworkSetup.transform.rotation.eulerAngles.y, 0f);
+                         if (XRHandController_Right != null)
+                         {
+                             AvatarHand_Right.localPosition = Vector3.Lerp(AvatarHand_Right.localPosition, baseRightControllerPos, 0.5f);
+@@ -179,6 +180,48 @@ namespace VertexFormCore
+             cameraOffset.localPosition = new Vector3(lp.x, lp.y + yDelta, lp.z);
+         }
+ 
++        private void OnSittingStateChanged(bool isSitting)
++        {
++            if (cameraOffset == null)
++                return;
++
++            if (isSitting)
++            {
++                _savedCameraOffsetLocalPosition = cameraOffset.localPosition;
++                _hasSavedCameraOffset = true;
++            }
++            else if (_hasSavedCameraOffset)
++            {
++                cameraOffset.localPosition = _savedCameraOffsetLocalPosition;
++                _hasSavedCameraOffset = false;
++            }
++        }
++
++        /// <summary>
++        /// Keeps the local viewpoint with a visual avatar that receives its final seated pelvis
++        /// correction. Only horizontal displacement is applied here; the existing seated-height
++        /// path continues to own camera Y. The original offset is restored on the stand event.
++        /// </summary>
++        public bool TryApplySeatedViewCorrection(Vector3 worldCorrection)
++        {
++            if (cameraOffset == null
++                || playerNetworkSetup == null
++                || !playerNetworkSetup.IsSitting)
++            {
++                return false;
++            }
++
++            Vector3 horizontalWorldCorrection = Vector3.ProjectOnPlane(worldCorrection, Vector3.up);
++            if (horizontalWorldCorrection.sqrMagnitude <= 0.000001f)
++                return false;
++
++            Vector3 localCorrection = cameraOffset.parent != null
++                ? cameraOffset.parent.InverseTransformVector(horizontalWorldCorrection)
++                : horizontalWorldCorrection;
++            cameraOffset.localPosition += localCorrection;
++            return true;
++        }
++
+         public void EnableControllerHands()
+         {
+             if (XRHandController_Right != null)
+diff --git a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
+index 60db0632..9a859984 100644
+--- a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
++++ b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
+@@ -126,6 +126,13 @@ namespace VertexFormCore
+             rightHandParent.gameObject.SetActive(false);
+         }
+ 
++        /// <summary>
++        /// When true, an external avatar integration owns avatar preview and construction.
++        /// The stock selection UI remains available, but stock avatar prefabs are not
++        /// instantiated or reactivated. Leave false for the standard VertexForm behavior.
++        /// </summary>
++        public static bool SuppressLegacyAvatars;
++
+         public void InitializeAvatarSystem()
+         {
+             OnTapCustomAvatarSelection();
+@@ -135,7 +142,10 @@ namespace VertexFormCore
+         {
+             avatarSelectionNumber = PlayerPrefs.GetInt(MultiplayerVRConstants.AVATAR_SELECTION_NUMBER);
+             ActivateAvatarModelAt(avatarSelectionNumber);
+-            customAvatarSelection.SetActive(true);
++            if (!SuppressLegacyAvatars)
++            {
++                customAvatarSelection.SetActive(true);
++            }
+             customAvatarSelectionUI.SetActive(true);
+             if (customAvatarSelectionUI.activeInHierarchy)
+             {
+@@ -189,6 +199,11 @@ namespace VertexFormCore
+         /// <param name="avatarIndex"></param>
+         private void ActivateAvatarModelAt(int avatarIndex)
+         {
++            if (SuppressLegacyAvatars)
++            {
++                return;
++            }
++
+             ClearChildren(headParent);
+             ClearChildren(headTransform);
+             ClearChildren(bodyTransform);
+diff --git a/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs b/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs
+index 2277f9a5..8ca3821e 100644
+--- a/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs
++++ b/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs
+@@ -96,8 +96,20 @@ namespace VertexFormCore
+             }
+         }
+ 
++        /// <summary>
++        /// Optional provider-neutral avatar construction hook. Return true when an
++        /// external integration owns construction for this player; returning false
++        /// preserves the standard VertexForm head/body prefab path.
++        /// </summary>
++        public static System.Func<PlayerNetworkSetup, int, bool> AvatarConstructionOverride;
++
+         public void InitializeSelectedAvatarModel(int avatarSelectionNumber)
+         {
++            if (AvatarConstructionOverride != null && AvatarConstructionOverride(this, avatarSelectionNumber))
++            {
++                return;
++            }
++
+             AvatarInputConverter avatarInputConverter = LocalXRRigGameobject.GetComponent<AvatarInputConverter>();
+             Debug.Log("-->on selected avatar " + avatarSelectionNumber + "for mine? " + Object.HasInputAuthority);
+ 
+@@ -359,13 +371,24 @@ namespace VertexFormCore
+         /// <summary>True while the local player is seated (desktop: movement is skipped). Cleared when standing.</summary>
+         public bool IsSitting { get; private set; }
+         public bool IsSittingHeightFixed { get; private set; }
++        public event System.Action<bool> SittingStateChanged;
+ 
+         /// <summary>Current seat (set when sitting). Used so movement input can trigger leave.</summary>
+         private SitSpot _currentSitSpot;
++        public SitSpot CurrentSitSpot => _currentSitSpot;
+ 
+         public void SetCurrentSitSpot(SitSpot spot) { _currentSitSpot = spot; }
+         public void ClearCurrentSitSpot() { _currentSitSpot = null; }
+ 
++        private void SetSittingState(bool isSitting)
++        {
++            if (IsSitting == isSitting)
++                return;
++
++            IsSitting = isSitting;
++            SittingStateChanged?.Invoke(isSitting);
++        }
++
+         /// <summary>Call when local player wants to stand (e.g. pressed move keys while sitting).</summary>
+         public void LeaveCurrentSeatIfAny()
+         {
+@@ -381,7 +404,7 @@ namespace VertexFormCore
+             Debug.Log("SittingOnObject: " + sittingPosition.position + " " + sittingPosition.rotation + " " + Object.HasInputAuthority);
+             if (!Object.HasInputAuthority || sittingPosition == null) return;
+ 
+-            IsSitting = true;
++            SetSittingState(true);
+             transform.position = sittingPosition.position;
+             transform.rotation = sittingPosition.rotation;
+ 
+@@ -397,28 +420,44 @@ namespace VertexFormCore
+         }
+         public void LeavingSeat()
+         {
+-            IsSitting = false;
++            SetSittingState(false);
+         }
+ 
++        /// <summary>
++        /// Floor-tracked XR already reports the user's physical height. Preserve the authored
++        /// posture offsets for flat desktop/mobile, but never add them to an immersive XR rig.
++        /// </summary>
++        private float GetPostureCameraYOffset(float desktopOffset)
++        {
++            return NetworkedIsVrStyle() ? 0f : desktopOffset;
++        }
+ 
+         public void SetSittingHeight(bool calledFromSitSpot)
+         {
+             if (calledFromSitSpot)
+             {
+-                IsSitting = true;
++                SetSittingState(true);
+             }
+             IsSittingHeightFixed = true;
+-            cameraOffset.transform.localPosition = Vector3.up * sittingHeight;
++            Vector3 currentOffset = cameraOffset.transform.localPosition;
++            cameraOffset.transform.localPosition = new Vector3(
++                currentOffset.x,
++                GetPostureCameraYOffset(sittingHeight),
++                currentOffset.z);
+         }
+ 
+         public void SetStandingHeight(bool calledFromSitSpot)
+         {
+             if (calledFromSitSpot)
+             {
+-                IsSitting = false;
++                SetSittingState(false);
+             }
+             IsSittingHeightFixed = false;
+-            cameraOffset.transform.localPosition = Vector3.up * standingHeight;
++            Vector3 currentOffset = cameraOffset.transform.localPosition;
++            cameraOffset.transform.localPosition = new Vector3(
++                currentOffset.x,
++                GetPostureCameraYOffset(standingHeight),
++                currentOffset.z);
+             var xrRig = GetComponent<XRRigController>() ?? GetComponentInParent<XRRigController>() ?? GetComponentInChildren<XRRigController>();
+             if (xrRig != null)
+             {
+diff --git a/Assets/VertexForm3D/Scripts/Multiplayer/SitSpot.cs b/Assets/VertexForm3D/Scripts/Multiplayer/SitSpot.cs
+index 1257b16e..a9a2dc03 100644
+--- a/Assets/VertexForm3D/Scripts/Multiplayer/SitSpot.cs
++++ b/Assets/VertexForm3D/Scripts/Multiplayer/SitSpot.cs
+@@ -15,6 +15,8 @@ public class SitSpot : NetworkBehaviour
+ 
+     [Networked] public bool isOccupied { get; set; }
+     public Transform SitPoint;
++    [Tooltip("Optional humanoid hips target used after the seated loop is established. SitPoint remains the player/root anchor.")]
++    public Transform SeatedPelvisTarget;
+ 
+     [SerializeField] private float interactionRange = 1.2f;
+     [SerializeField] private float movementThreshold = 0.3f; // Distance threshold to detect movement
+@@ -207,6 +209,13 @@ public class SitSpot : NetworkBehaviour
+             Gizmos.color = new Color(1f, 0.5f, 0f); // Orange color
+             DrawArrowWithHandles(SitPoint.position, SitPoint.position + SitPoint.forward * 0.12f);
+         }
++
++        if (SeatedPelvisTarget != null)
++        {
++            Gizmos.color = Color.magenta;
++            DrawCrosshair(SeatedPelvisTarget.position, 0.12f);
++            Gizmos.DrawWireSphere(SeatedPelvisTarget.position, 0.06f);
++        }
+     }
+ 
+     private void DrawCrosshair(Vector3 position, float size)
+diff --git a/Assets/VertexForm3D/Scripts/Utility/SceneLoader.cs b/Assets/VertexForm3D/Scripts/Utility/SceneLoader.cs
+index 98ee4869..74256278 100644
+--- a/Assets/VertexForm3D/Scripts/Utility/SceneLoader.cs
++++ b/Assets/VertexForm3D/Scripts/Utility/SceneLoader.cs
+@@ -14,6 +14,12 @@ namespace VertexFormCore
+     public class SceneLoader : MonoBehaviour
+     {
+         public static SceneLoader Instance;
++
++        /// <summary>
++        /// Raised immediately before a requested world-scene transition begins.
++        /// Feature integrations can use it to cancel previews and release scene-local resources.
++        /// </summary>
++        public static event Action<string> SceneLoadStarting;
+         public bool isFlyModeEnabled;
+         public float completePerchantage;
+         public bool isCesiumScene;
+@@ -72,6 +78,7 @@ namespace VertexFormCore
+             sceneIsLoaded = false;
+             if (loadSceneCoroutine == null)
+             {
++                SceneLoadStarting?.Invoke(SceneName);
+                 loadSceneCoroutine = StartCoroutine(WaitToLeveThenLoadScene(SceneName));
+             }
+         }

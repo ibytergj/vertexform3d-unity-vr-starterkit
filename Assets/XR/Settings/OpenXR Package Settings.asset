@@ -722,6 +722,8 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_CameraImageSupport: 0
+  m_PassthroughPreSplashScreen: 0
 --- !u!114 &-1583926552510790494
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1033,6 +1035,8 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_CameraImageSupport: 0
+  m_PassthroughPreSplashScreen: 0
 --- !u!114 &1465797053238418177
 MonoBehaviour:
   m_ObjectHideFlags: 0

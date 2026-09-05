@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd9e46a8f497e214f971ac02c2b8a85d, type: 3}
+  m_Name: UmaAvatarCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::GHA.AvatarSuite.UmaAvatarCatalog
+  enableStockAvatars: 1
+  enableUmaAvatars: 1
+  defaultSystem: 1
+  races:
+  - {fileID: 11400000, guid: df173d6a708cd49499632fea0b0056d5, type: 2}
+  wardrobeRecipes:
+  - {fileID: 11400000, guid: 9d9f5b51a78e0f44a87f7fb7dd80795d, type: 2}
+  - {fileID: 11400000, guid: 9962c28dfacdf1d41b3b420c64a157c7, type: 2}
+  - {fileID: 11400000, guid: 511aa62754b82734e8a3ef2c7730b4d1, type: 2}
+  - {fileID: 11400000, guid: b96d745dbf37c664ab3490d93c510c16, type: 2}
+  - {fileID: 11400000, guid: a47ff067f68537f4d844d4c007deb8fb, type: 2}
+  - {fileID: 11400000, guid: 3a1b3f708e1d5654c96e86b08bdfd8bf, type: 2}
+  - {fileID: 11400000, guid: a48ff9401ee730b498a6eb44691dd2e5, type: 2}
+  - {fileID: 11400000, guid: aa168d22c3ad84245829828a98467d0c, type: 2}
+  - {fileID: 11400000, guid: b245b79130682d04dba398b75febd4fa, type: 2}
+  - {fileID: 11400000, guid: 0ed25761b684b7048a76eafe523486da, type: 2}
+  - {fileID: 11400000, guid: d928cabcf2854e6428490a8eb733f9a0, type: 2}
+  - {fileID: 11400000, guid: b55cee5facaaacb49adbf21556a91930, type: 2}
+  - {fileID: 11400000, guid: 8a44198d09a1d134597a9c5a53d14350, type: 2}
+  - {fileID: 11400000, guid: b018c36bd6589214785340abbdafa563, type: 2}
+  - {fileID: 11400000, guid: 047de1958ad5cfe4ea70df1f1b57762d, type: 2}
+  - {fileID: 11400000, guid: dc06686994618814d8a535837035651f, type: 2}
+  - {fileID: 11400000, guid: 0e9919e9aa10fa04e9ad86d565261678, type: 2}
+  defaultWardrobe:
+  - {fileID: 11400000, guid: 9d9f5b51a78e0f44a87f7fb7dd80795d, type: 2}
+  - {fileID: 11400000, guid: 9962c28dfacdf1d41b3b420c64a157c7, type: 2}
+  - {fileID: 11400000, guid: 511aa62754b82734e8a3ef2c7730b4d1, type: 2}
+  - {fileID: 11400000, guid: b96d745dbf37c664ab3490d93c510c16, type: 2}
+  defaultRaceId: 0
+  dnaNames:
+  - height
+  - upperMuscle
+  - lowerMuscle
+  - upperWeight
+  - lowerWeight
+  - belly
+  - armLength
+  - legsSize
+  - feetSize
+  - handsSize
+  - headSize
+  - headWidth
+  - eyeSize
+  - noseSize
+  - mouthSize
+  - jawsSize
+  - chinSize
+  colorChannels:
+  - label: Skin
+    channelName: Skin
+    palette: {fileID: 11400000, guid: 1142620b746698b42a5bb3392ee7c732, type: 2}
+    defaultPaletteIndex: 7
+  - label: Hair
+    channelName: Hair
+    palette: {fileID: 11400000, guid: b3b6cfa4c2da1004cb1e49feb8144d30, type: 2}
+    defaultPaletteIndex: 0
+  - label: Eyes
+    channelName: Eyes
+    palette: {fileID: 11400000, guid: 40e5f112cad2f64438393fe518da506d, type: 2}
+    defaultPaletteIndex: 0

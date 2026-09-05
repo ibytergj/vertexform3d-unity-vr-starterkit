@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.anklebreaker.unity-mcp": "https://github.com/AnkleBreaker-Studio/unity-mcp-plugin.git",
     "com.de-panther.webxr": "0.22.1",
     "com.de-panther.webxr-interactions": "0.22.0",
     "com.unity.2d.sprite": "1.0.0",
@@ -22,7 +23,7 @@
     "com.unity.xr.hands": "1.7.3",
     "com.unity.xr.interaction.toolkit": "3.3.1",
     "com.unity.xr.management": "4.5.4",
-    "com.unity.xr.meta-openxr": "2.4.0",
+    "com.unity.xr.meta-openxr": "2.5.1",
     "com.unity.xr.openxr": "1.16.1",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
@@ -57,7 +58,8 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
+    "com.unity.modules.xr": "1.0.0",
+    "com.unity.pipeline": "0.6.0-exp.1"
   },
   "scopedRegistries": [
     {

@@ -1470,9 +1470,12 @@ MonoBehaviour:
   MainAvatarTransform: {fileID: 3463589931858407216}
   HeadTransform: {fileID: 4008043411697153107}
   ShadowHeadTransform: {fileID: 4008043411697153107}
+  ShadowBodyTransform: {fileID: 0}
   BodyTransform: {fileID: 2322404650523738561}
   HandLeftTransform: {fileID: 6888912553820153673}
   HandRightTransform: {fileID: 8376887976470448469}
+  LeftHandVisual: {fileID: 0}
+  RightHandVisual: {fileID: 0}
   initLayer: 1
 --- !u!114 &9059775381181190525
 MonoBehaviour:
@@ -1965,7 +1968,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   notificationPrefab: {fileID: 8207088940328993584, guid: 8a72146bcc3ad9f429d37c777205f7c5, type: 3}
-  notificationContainer: {fileID: 0}
+  notificationContainerDesktop: {fileID: 0}
+  notificationContainerVR: {fileID: 0}
 --- !u!1 &4613424276466094448
 GameObject:
   m_ObjectHideFlags: 0
@@ -3974,7 +3978,8 @@ MonoBehaviour:
   spawnPoint: {fileID: 4008043411697153107}
   emojiSO: {fileID: 11400000, guid: e8bc204e60e6f784d9b928a92c6b262a, type: 2}
   emojiPrefab: {fileID: 4380028024827300188, guid: 446612f4cbb96cb42bac5f78bef0954d, type: 3}
-  emojiParent: {fileID: 3414748508359199370}
+  emojiParentVR: {fileID: 0}
+  emojiParentDesktop: {fileID: 0}
   emoji: {fileID: 6076762301414402490}
   emojiIndex: 0
 --- !u!1 &7312683224132250505
@@ -5028,12 +5033,14 @@ MonoBehaviour:
   menuUI: {fileID: 6749145972697224887}
   desktopMenuUI: {fileID: 0}
   settingUI: {fileID: 768772538261575126}
-  emojiPanel: {fileID: 8954458589179247842}
+  emojiPanelDesktop: {fileID: 0}
+  emojiPanelVR: {fileID: 0}
   _inputData: {fileID: 3270096055398411028}
   networkSetup: {fileID: 7035473404277749505}
   networkRunner: {fileID: 0}
   selfieStickPrefab: {fileID: 4520411988804635808, guid: 3c22ab60d2ae64248bbd996ef51816d3, type: 3}
   selfieButton: {fileID: 5058177201120000041}
+  xrRigController: {fileID: 0}
   timeText: {fileID: 4188263951587957328}
   dateText: {fileID: 3781220563685405928}
   voiceUISetting:
@@ -5101,6 +5108,7 @@ MonoBehaviour:
   distanceFromCamera: 2
   xrCameraTransform: {fileID: 366349417295850678}
   networkObject: {fileID: 6239063487715385760}
+  webXrSwapMenuSettingsControllerOrder: 0
   canFlyGlobally: 0
 --- !u!1 &8740542872695529387
 GameObject:
@@ -6616,6 +6624,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 274137209628319676}
+    - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7527854876544683462}
+    - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2638001002401261319}
     - targetCorrespondingSourceObject: {fileID: 1680501586, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2865043195605694158}
@@ -6997,8 +7011,8 @@ MonoBehaviour:
   PlayerName_Text: {fileID: 3686385881209658550}
   cameraOffset: {fileID: 366349417485725846}
   xROrigin: {fileID: 1535270415050945640}
-  maxHeight: 0.7
-  normalHeight: 0.1
+  standingHeight: 0
+  sittingHeight: 0
   tp: {fileID: 2114271196987775531}
   gp: {fileID: 879400103968718828}
   leftHand: {fileID: 8751586311104080097}
@@ -7016,7 +7030,8 @@ MonoBehaviour:
   - {fileID: 4236523085834320165}
   IAM: {fileID: 6875081996172634699}
   XRIMM: {fileID: 6183380161747931381}
-  notificationParent: {fileID: 7376636739469320893}
+  notificationParentDesktop: {fileID: 0}
+  notificationParentVR: {fileID: 0}
   voiceNetworkObject: {fileID: 274137209628319676}
   playerRecorder: {fileID: 3035402259281357192}
   playerSpeaker: {fileID: 8471293578783697866}
@@ -7060,7 +7075,6 @@ MonoBehaviour:
   - {fileID: 366349416840011968}
   - {fileID: 8810450212586191635}
   - {fileID: 5306750102549658663}
-  customAvatarScriptable: {fileID: 11400000, guid: fe763b2aa638cf447a5fc5aa1f031e14, type: 2}
   avatarHolder: {fileID: 8755936494659395246}
   bodyTransform: {fileID: 2322404650523738561}
   headTransform: {fileID: 4008043411697153107}
@@ -7070,6 +7084,7 @@ MonoBehaviour:
     _data:
       Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
   _Platform: 0
+  _WebGpuBrowserKind: 0
 --- !u!114 &2669120137058892794
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7332,6 +7347,7 @@ MonoBehaviour:
   - {fileID: 4314441362600122496}
   - {fileID: 6904054503310799023}
   - {fileID: 274137209628319676}
+  - {fileID: 7527854876544683462}
   - {fileID: 3219112114560245129}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &6904054503310799023
@@ -7363,6 +7379,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6376dd7fc23b3764483a7349b58502e2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &7527854876544683462
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351904833967977961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 989f755490ee91249b0d5fa7b310dd94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VertexFormCore.AvatarExtensionSync
+  _Mode: 0
+  _Revision: 0
+  _Length: 0
+  _Data: 
+  _Posture: 0
+  _PostureRevision: 0
+  _SeatId:
+    Raw: 0
+--- !u!114 &2638001002401261319
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351904833967977961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c46dfc77683ec51428ca9e6e4d10c0bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GHA.AvatarSuite.UmaAvatarBridge
+  catalog: {fileID: 11400000, guid: b5af5eead1176264f91bcd23f195d0c3, type: 2}
+  animationController: {fileID: 9100000, guid: fbb96778d462fe142a7fe6597e54657f, type: 2}
+  localVrCullLayer: 7
+  movingTurnSpeed: 720
+  idleTurnSpeed: 200
+  faceMovementThreshold: 0.6
 --- !u!4 &1351904833967977962 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}

@@ -8153,6 +8153,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1960147723854696638}
+    - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8499091947109981410}
+    - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3840974780406578631}
     - targetCorrespondingSourceObject: {fileID: 1680501586, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2865043195605694158}
@@ -8883,6 +8889,7 @@ MonoBehaviour:
   - {fileID: 4314441362600122496}
   - {fileID: 6904054503310799023}
   - {fileID: 274137209628319676}
+  - {fileID: 8499091947109981410}
   - {fileID: 3219112114560245129}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &6904054503310799023
@@ -9221,6 +9228,44 @@ MonoBehaviour:
   previousRotation: {x: 0, y: 0}
   isHoweringUI: 0
   inputassigned: 0
+--- !u!114 &8499091947109981410
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351904833967977961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 989f755490ee91249b0d5fa7b310dd94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VertexFormCore.AvatarExtensionSync
+  _Mode: 0
+  _Revision: 0
+  _Length: 0
+  _Data: 
+  _Posture: 0
+  _PostureRevision: 0
+  _SeatId:
+    Raw: 0
+--- !u!114 &3840974780406578631
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1351904833967977961}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c46dfc77683ec51428ca9e6e4d10c0bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GHA.AvatarSuite.UmaAvatarBridge
+  catalog: {fileID: 11400000, guid: b5af5eead1176264f91bcd23f195d0c3, type: 2}
+  animationController: {fileID: 9100000, guid: fbb96778d462fe142a7fe6597e54657f, type: 2}
+  localVrCullLayer: 7
+  movingTurnSpeed: 720
+  idleTurnSpeed: 200
+  faceMovementThreshold: 0.6
 --- !u!4 &1351904833967977962 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}

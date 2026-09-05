@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.anklebreaker.unity-mcp": {
+      "version": "https://github.com/AnkleBreaker-Studio/unity-mcp-plugin.git",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "4c03a9601a8c5133bfca1b580b23866a96b0b603"
+    },
     "com.de-panther.webxr": {
       "version": "0.22.1",
       "depth": 0,
@@ -167,6 +174,20 @@
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
+    "com.unity.pipeline": {
+      "version": "0.6.0-exp.1",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.test-framework": "1.1.33",
+        "com.unity.nuget.mono-cecil": "1.11.6",
+        "com.unity.modules.uielements": "1.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0",
+        "com.unity.modules.screencapture": "1.0.0",
+        "com.unity.nuget.newtonsoft-json": "3.0.2"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.postprocessing": {
       "version": "3.5.1",
       "depth": 0,
@@ -283,7 +304,7 @@
       }
     },
     "com.unity.xr.arfoundation": {
-      "version": "6.4.0",
+      "version": "6.5.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {
@@ -301,7 +322,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.compositionlayers": {
-      "version": "2.3.0",
+      "version": "2.4.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {
@@ -372,15 +393,15 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.meta-openxr": {
-      "version": "2.4.0",
+      "version": "2.5.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.xr.openxr": "1.15.1",
         "com.unity.xr.core-utils": "2.5.1",
         "com.unity.xr.management": "4.4.0",
-        "com.unity.xr.arfoundation": "6.4.0",
-        "com.unity.xr.compositionlayers": "2.2.0"
+        "com.unity.xr.arfoundation": "6.5.0",
+        "com.unity.xr.compositionlayers": "2.4.0"
       },
       "url": "https://packages.unity.com"
     },
@@ -396,6 +417,26 @@
         "com.unity.xr.legacyinputhelpers": "2.1.2"
       },
       "url": "https://packages.unity.com"
+    },
+    "com.vertexform3d.gha": {
+      "version": "file:com.vertexform3d.gha",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.animation.rigging": "1.4.1",
+        "com.unity.xr.interaction.toolkit": "3.3.1",
+        "com.unity.xr.management": "4.5.4",
+        "com.unity.xr.openxr": "1.16.1"
+      }
+    },
+    "com.vertexform3d.gha.uma": {
+      "version": "file:com.vertexform3d.gha.uma",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.vertexform3d.gha": "0.1.0",
+        "com.unity.ugui": "2.0.0"
+      }
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
