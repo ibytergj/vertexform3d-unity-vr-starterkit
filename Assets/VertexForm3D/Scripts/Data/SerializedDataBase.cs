@@ -53,7 +53,8 @@ public class WorldData
     [Header("Platform Supported")]
     public bool Desktop = true;
     public bool VR = true;
-    public bool WebGPU = true;
+    [UnityEngine.Serialization.FormerlySerializedAs("WebGPU")]
+    public bool Web = true;
     public bool WebXR = true;
     [Tooltip("WebXR on a mobile browser (WebGpuBrowserKind.MobileBrowser)")]
     public bool Mobile = true;
@@ -71,7 +72,7 @@ public class WorldData
             flyMode = this.flyMode, // Bool is value type
             Desktop = this.Desktop,
             VR = this.VR,
-            WebGPU = this.WebGPU,
+            Web = this.Web,
             WebXR = this.WebXR,
             Mobile = this.Mobile
         };
