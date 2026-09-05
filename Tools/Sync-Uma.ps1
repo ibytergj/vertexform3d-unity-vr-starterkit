@@ -3,7 +3,8 @@
 Installs the pinned, locally required UMA content into a VertexForm3D Unity checkout.
 
 .DESCRIPTION
-Copies UMA from a clean sibling UMA Git repository at the expected release commit. Disposable
+Copies UMA from the owner's clean sibling UMA Git repository at the reviewed master commit.
+Does not clone, fetch, pull, or check out the source repository. Disposable
 sample and archival documentation content that is not required by the avatar integration is
 omitted. Selected UMA authoring tools and their dependencies are retained even when they live
 beneath a pruned sample tree. Assets/UMA and Assets/UMA.meta must be ignored by the destination
@@ -46,7 +47,7 @@ param(
     [string]$VertexProjectPath,
 
     [Parameter()]
-    [string]$ExpectedCommit = '722b308aebfe5dee7d0048e24c1c464c00b5fc06',
+    [string]$ExpectedCommit = '0c69fee9b4871251d520ae2bfd84868b5a1646f3',
 
     [Parameter()]
     [switch]$ReplaceExisting
@@ -248,6 +249,11 @@ if ($actualCommit -ne $ExpectedCommit) {
     throw "UMA source is at $actualCommit; expected $ExpectedCommit."
 }
 
+$sourceBranch = & $gitCommand.Source -C $resolvedUmaRepository branch --show-current
+if ($LASTEXITCODE -ne 0 -or $sourceBranch -cne 'master') {
+    throw 'The UMA source must be checked out on master. No source branch will be changed automatically.'
+}
+
 $sourceChanges = @(& $gitCommand.Source -C $resolvedUmaRepository status --porcelain)
 if ($LASTEXITCODE -ne 0) {
     throw 'Unable to inspect the UMA source working tree.'
@@ -286,7 +292,8 @@ $excludedDirectories = @(
     (Join-Path $sourceUma 'UMA3\Documentation'),
     (Join-Path $sourceUma 'UMA3\OLD_Getting Started'),
     (Join-Path $sourceUma 'UMA3\RandomCharacters'),
-    (Join-Path $sourceUma 'UMA3\Scenes')
+    (Join-Path $sourceUma 'UMA3\Scenes'),
+    (Join-Path $sourceUma 'SRP\Samples\Scenes')
 )
 
 $removedOrphanMetadata = @(
@@ -318,15 +325,30 @@ $retainedAuthoringPaths = @(
     'UMA3/Scenes/Prefabs/Textures/HeadCamRenderTexture.renderTexture.meta',
     'UMA3/Scenes/Prefabs/Textures/LegsCamRenderTexture.renderTexture',
     'UMA3/Scenes/Prefabs/Textures/LegsCamRenderTexture.renderTexture.meta',
-    'UMA3/Scenes/U3-Tools-Photobooth.meta',
-    'UMA3/Scenes/U3-Tools-Photobooth.unity',
-    'UMA3/Scenes/U3-Tools-Photobooth.unity.meta',
-    'UMA3/Scenes/U3-Tools-Photobooth'
+    'SRP/Samples/Scenes.meta',
+    'SRP/Samples/Scenes/U3-Tools-Photobooth.meta',
+    'SRP/Samples/Scenes/U3-Tools-Photobooth.unity',
+    'SRP/Samples/Scenes/U3-Tools-Photobooth.unity.meta',
+    'SRP/Samples/Scenes/U3-Tools-Photobooth'
 )
 
-$operation = "Install UMA release $ExpectedCommit into '$destinationUma' and '$destinationSourceShaders'"
+# Validate the reviewed layout even during -WhatIf, before touching the destination.
+foreach ($relativePath in $retainedAuthoringPaths) {
+    $sourcePath = Join-Path $sourceUma $relativePath.Replace('/', '\')
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        throw "Required UMA authoring content is missing from the pinned source: $sourcePath"
+    }
+}
+
+$operation = "Install UMA master commit $ExpectedCommit from '$resolvedUmaRepository' into '$destinationUma' and '$destinationSourceShaders'"
 if (-not $PSCmdlet.ShouldProcess($resolvedVertexProject, $operation)) {
     return
+}
+
+# A bulk vendor swap must not race Unity's asset importer. A stale lock also requires
+# investigation rather than silently proceeding against an uncertain editor state.
+if (Test-Path -LiteralPath (Join-Path $resolvedVertexProject 'Temp\UnityLockfile')) {
+    throw 'Close the destination Unity editor before replacing UMA (Temp/UnityLockfile is present).'
 }
 
 $syncId = [Guid]::NewGuid().ToString('N')
@@ -368,6 +390,9 @@ try {
         '/NJH',
         '/NJS',
         '/NP',
+        '/XJ',
+        '/XF',
+        (Join-Path $sourceUma 'InternalDataStore\InGame\Resources\AssetIndexer.asset'),
         '/XD'
     ) + $excludedDirectories
 
@@ -446,6 +471,22 @@ try {
         throw "Staged UMA tree contains only $($stagedFiles.Count) files; refusing an incomplete install."
     }
 
+    # Generated library data belongs to this project, not to the source checkout.
+    if (Test-Path -LiteralPath (Join-Path $stagingUma 'InternalDataStore\InGame\Resources\AssetIndexer.asset')) {
+        throw 'The source Global Library was copied unexpectedly; it must be rebuilt in the destination.'
+    }
+    $finalSourceCommit = (& $gitCommand.Source -C $resolvedUmaRepository rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $finalSourceCommit -ne $actualCommit) {
+        throw 'The source checkout changed during copying. No destination replacement was performed.'
+    }
+    $finalSourceChanges = @(& $gitCommand.Source -C $resolvedUmaRepository status --porcelain)
+    if ($LASTEXITCODE -ne 0 -or $finalSourceChanges.Count -ne 0) {
+        throw 'The source checkout became dirty during copying. No destination replacement was performed.'
+    }
+    if (Test-Path -LiteralPath (Join-Path $resolvedVertexProject 'Temp\UnityLockfile')) {
+        throw 'The destination Unity editor opened during copying. Close it before retrying.'
+    }
+
     if (
         (Test-Path -LiteralPath $destinationUma) -or
         (Test-Path -LiteralPath $destinationSourceShaders)
@@ -508,7 +549,9 @@ try {
     Write-Output "Installed bytes: $installedBytes"
     Write-Output "Installed source shader files: $($installedSourceShaderFiles.Count)"
     Write-Output "Installed source shader bytes: $installedSourceShaderBytes"
-    Write-Output 'Retained UMA authoring tool: UMA3/Scenes/U3-Tools-Photobooth.unity'
+    Write-Output "Source checkout (unchanged): $resolvedUmaRepository [master]"
+    Write-Output 'Retained UMA authoring tool: SRP/Samples/Scenes/U3-Tools-Photobooth.unity'
+    Write-Output 'Source AssetIndexer.asset excluded; rebuild the destination Global Library before Play Mode.'
     Write-Output (
         'UMA_INSTALLED remains disabled pending UMA 3 support in AnkleBreaker; ' +
         'UMA itself does not consume this presence define.'

@@ -97,7 +97,6 @@ namespace GHA.AvatarSuite
         private bool _previewBuildInProgress;
         private bool _previewRebuildQueued;
         private bool _previewNeedsBuild = true;
-        private bool _previewFramePending;
         private bool _saveRefreshPending;
         private string _saveWaitTraceId;
         private double _saveWaitStartedAt = -1d;
@@ -1148,6 +1147,8 @@ namespace GHA.AvatarSuite
                 if (previewParent != null)
                 {
                     if (!previewParent.gameObject.activeSelf) previewParent.gameObject.SetActive(true);
+                    // The authored anchor owns placement and display scale. Keep the new
+                    // avatar at its origin; do not re-center it after UMA builds or DNA changes.
                     go.transform.SetParent(previewParent, false);
                 }
                 else
@@ -1231,7 +1232,6 @@ namespace GHA.AvatarSuite
         private void OnPreviewCharacterUpdated(UMAData data)
         {
             ShowLoading(false);
-            RequestEmbeddedPreviewFrame();
             if (_previewLoadStartedAt < 0d)
                 return;
 
@@ -1254,37 +1254,6 @@ namespace GHA.AvatarSuite
 
             if (_saveRefreshPending)
                 RefreshHomeAfterSave();
-        }
-
-        private void RequestEmbeddedPreviewFrame()
-        {
-            if (!_embeddedPanelMode || !_providerSelected || _previewDca == null ||
-                _embeddedPreviewUiRoot == null || _previewFramePending)
-            {
-                return;
-            }
-
-            StartCoroutine(FrameEmbeddedPreviewAfterLayout());
-        }
-
-        private IEnumerator FrameEmbeddedPreviewAfterLayout()
-        {
-            _previewFramePending = true;
-            yield return null;
-            Canvas.ForceUpdateCanvases();
-            if (_providerSelected && _previewDca != null)
-            {
-                // The preview anchor owns UMA's authored display scale. Keep the DCA at its
-                // regular child scale, center the body horizontally, and pin its rendered feet
-                // to the bottom of the usable preview area. Tall/larger bodies may overflow top.
-                if (previewParent != null)
-                    _previewDca.transform.localScale = Vector3.one;
-
-                AvatarPreviewFraming.AlignRenderersToBottomCenter(
-                    _previewDca.transform,
-                    _embeddedPreviewUiRoot);
-            }
-            _previewFramePending = false;
         }
 
         private void ApplyWardrobeToPreview()
@@ -1523,7 +1492,6 @@ namespace GHA.AvatarSuite
             _previewLoadStartedAt = -1d;
             _previewBuildInProgress = false;
             _previewRebuildQueued = false;
-            _previewFramePending = false;
             _saveRefreshPending = false;
             if (_saveWaitStartedAt >= 0d)
             {

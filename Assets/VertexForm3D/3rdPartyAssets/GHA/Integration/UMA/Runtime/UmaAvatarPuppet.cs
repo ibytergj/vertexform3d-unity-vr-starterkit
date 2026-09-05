@@ -515,7 +515,7 @@ namespace GHA.AvatarSuite
                 _nextVrArmIkRetryTime = Time.time + 0.25f;
             bool headTracked = IsHeadTracked();
             _trackingLifecycle.SynchronizeTracking(headTracked);
-            _humanoidArmRig.SetArmTrackingActive(!IsLocalVrEmbodiment || headTracked);
+            _humanoidArmRig.SetArmTrackingActive(IsVrEmbodiment && (!IsLocalVrEmbodiment || headTracked));
             if (autoScaleVrAvatarToPlayerHeight && IsLocalVrEmbodiment && _dcaRoot != null)
                 _dcaRoot.transform.localScale = Vector3.one;
             _vrAlignment.Reset();
@@ -883,7 +883,9 @@ namespace GHA.AvatarSuite
 
         private void SetupVrArmIk()
         {
-            if (_rigInput == null || _dcaRoot == null)
+            // Desktop rigs still expose hand transforms, but those must never override
+            // the humanoid Animator. Only VR avatars may create tracking constraints.
+            if (!IsVrEmbodiment || _dcaRoot == null)
             {
                 _humanoidArmRig.Dispose();
                 return;
@@ -997,6 +999,16 @@ namespace GHA.AvatarSuite
 
         private void UpdateVrIkTargets()
         {
+            if (!IsVrEmbodiment)
+            {
+                // Also release an existing rig when leaving VR (for example in a web
+                // session), not just when the avatar is first built on desktop.
+                if (VrArmIkReady)
+                    ReleaseTrackedPoseToAnimator();
+                _humanoidArmRig.Dispose();
+                return;
+            }
+
             if (!VrArmIkReady || _rigInput == null)
                 return;
 

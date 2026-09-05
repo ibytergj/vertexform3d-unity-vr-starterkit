@@ -1,6 +1,6 @@
 # QuantumVertex to Generic Humanoid Avatars Migration Runbook
 
-Status date: 2026-09-01  
+Status date: 2026-09-05  
 Migration source: `E:\src\Unity\6000.3\QuantumVertex`  
 Migration target: `E:\src\Unity\6000.3\vertexform3d-unity-vr-starterkit-GHA`
 
@@ -87,6 +87,97 @@ slice.
     Editing files or receiving general permission to continue the migration is not Git approval.
 
 ## Current repository truth
+
+### September 5 checkpoint and desktop-arm acceptance
+
+The owner approved completing the staged VertexForm 1.1.9 merge and checkpointing
+the six reviewed UMA follow-up files. Merge commit `be13ec6e` records the exact
+13-file merge scope, with parents `18bdff38` and `58bf4e77`.
+
+The UMA follow-up includes the reviewed sync pin and setup documentation, UMAKeepChain
+and UMAIgnore tags, removal of delayed embedded-preview repositioning, and VR-only
+arm IK creation/update. Leaving VR now releases existing arm constraints to the
+Animator. Unity compilation completed without errors, and the owner explicitly
+confirmed that desktop arm animations are fixed. The owner will recheck VR after
+this checkpoint; VR regression acceptance remains PENDING.
+
+Jacket thumbnail/material differences and lighting adjustments are explicitly
+DEFERRED at the owner's direction. No material or lighting changes accompany the
+arm fix. Sensitive Photon configuration, unrelated local scene/settings changes,
+untracked authoring tools and generated files remain excluded and preserved.
+No push is included in this checkpoint approval.
+
+### September 5 approved UMA shader backport
+
+Owner approved a selective 13-file backport in the existing UMA repository.
+Local master commit `0c69fee9b4871251d520ae2bfd84868b5a1646f3` contains the exact
+12 shader graphs from `f4edf41ba1017b4a745fd1ba7286824332652b7d` plus
+`UMAProject/.gitattributes` from `800ee5e99da1d7486bd7c7c777b9579f6221a3d5`.
+Unrelated develop code, generated data, user settings and layouts were excluded.
+UMA is clean on master, one commit ahead of origin/master; no push was performed.
+The local commit must not be described as available from the official remote.
+
+`Tools/Sync-Uma.ps1` now pins the approved local commit. The owner requested applying
+the approved fixes immediately after reporting pink rendering. The exact 12 shader
+files were copied from the owner's clean UMA checkout through the stopped GHA editor
+in one AssetDatabase editing batch. No other vendor files or metadata were replaced.
+All 12 installed graphs match source SHA-256, load as supported shaders, and report
+zero ShaderUtil errors/messages. The skin material resolves to UMA3_SkinShader_URP;
+the active pipeline is UniversalRenderPipelineAsset (UniversalRP-WebGL.asset).
+No new console errors after cursor 153 (352 after import). No Play Mode visual test.
+Backup retained outside Unity's temporary directory at
+`Logs/UpstreamReview/ShaderBackup-20260905-151858`. The remaining
+`SRP/ShaderGraphs/Materials/UMA_SG_Diffuse.shadergraph` is malformed on develop too
+and is explicitly excluded from this backport. Detailed scope:
+`Logs/UpstreamReview/UMA-SHADER-BACKPORT-REVIEW.md`.
+
+### September 5 UMA master upgrade
+
+Owner direction: use the existing `E:/src/Unity/6000.3/UMA` checkout, master only;
+the owner pulled master. Source HEAD and origin/master are both
+`c9204fe475b334162617da5ca923afcc6050e01e`, with a clean source working tree.
+No source clone, fetch, pull, checkout, or source modification was performed by this upgrade.
+
+`Tools/Sync-Uma.ps1` now pins that revision, requires the master branch, validates
+the authoring allowlist during WhatIf, checks for an open destination editor, and
+rechecks source cleanliness/revision before replacement. The Photobooth moved to
+`SRP/Samples/Scenes`; its seven camera render textures remain under
+`UMA3/Scenes/Prefabs/Textures`. Disposable sample scenes in both locations remain
+excluded. The source-generated `AssetIndexer.asset` is explicitly excluded.
+
+After the owner closed GHA, replacement completed: 5,511 UMA files and 83 source
+shader files. All 5,594 copied files matched the owner's source checkout by SHA-256
+before Unity import. Prior installation retained at
+`Temp/UMA-Backup-20260905-100838`. C# compilation passed. Destination Global Library
+rebuilt to 508 records. Catalog references (one race, 17 wardrobe entries, four
+defaults and three palettes) resolve; the existing read-only recipe dependency
+audit reports zero missing explicit slot/overlay dependencies.
+
+Upgrade acceptance is blocked by 13 upstream shader graphs failing import with
+JSON parse errors. Their source formatting contains blank lines inside JSON objects,
+which Unity's MultiJson parser treats as object separators. No vendor repair or
+older-file substitution was applied. Owner approval is required before repairing
+the source UMA graphs. Evidence and file list:
+`Logs/UpstreamReview/UMA-MASTER-IMPORT-2026-09-05.md`. GHA is open, Play Mode stopped;
+runtime/platform acceptance remains pending.
+The 13 staged VertexForm merge paths are unchanged; this upgrade is unstaged.
+
+### September 5 checkpoint and VertexForm3D 1.1.9 merge review
+
+The five owner-reviewed checkpoint commits are now local: `4f6e3173`, `72c1c3a8`,
+`dd53e48f`, `13968802`, and `18bdff38`. The historical uncommitted-state descriptions
+below refer to earlier work, not these saved checkpoints. Nothing has been pushed.
+
+Official Master `58bf4e775653c8befbc6d36584742360dbc7033a` (1.1.9) has been fetched
+and merged with `--no-commit`. All conflicts are resolved; 13 files are staged for
+owner review before the merge commit. The UI database was preserved and saved
+through Unity; all 14 world entries retain their Web-support values. A
+`FormerlySerializedAs("WebGPU")` attribute accompanies the upstream `Web` rename.
+Unity compilation passed; 10 stock avatars, both Studio providers, one embedded
+panel, and preview position/scale `(0.9, -0.5, 0)` / `0.4` were verified. No Play
+Mode acceptance test was run. UMA remains at its existing pin. Detailed evidence,
+diagnostic limitations and exclusions: `Logs/UpstreamReview/VERTEX-1.1.9-VALIDATION.md`.
+This status-note edit is not part of the currently staged 13-file merge scope.
 
 ### QuantumVertex source
 
