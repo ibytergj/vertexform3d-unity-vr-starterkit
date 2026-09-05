@@ -1,0 +1,27 @@
+{
+  "name": "VertexForm.GHA.Runtime",
+  "rootNamespace": "GHA",
+  "references": [
+    "Unity.Animation.Rigging",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI",
+    "Unity.XR.CoreUtils",
+    "Unity.XR.Interaction.Toolkit",
+    "Unity.XR.Management",
+    "Unity.XR.OpenXR"
+  ],
+  "includePlatforms": [
+],
+"excludePlatforms": [
+],
+"allowUnsafeCode": false,
+"overrideReferences": false,
+"precompiledReferences": [
+],
+"autoReferenced": true,
+"defineConstraints": [
+],
+"versionDefines": [
+],
+"noEngineReferences": false
+}

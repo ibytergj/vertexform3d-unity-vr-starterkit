@@ -1,0 +1,22 @@
+{
+  "name": "com.vertexform3d.gha",
+  "version": "0.1.0",
+  "displayName": "VertexForm3D Generic Humanoid Avatars",
+  "description": "Provider-neutral Unity Humanoid embodiment, presentation, calibration, networking, and VertexForm3D integration contracts.",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.unity.animation.rigging": "1.4.1",
+    "com.unity.xr.interaction.toolkit": "3.3.1",
+    "com.unity.xr.management": "4.5.4",
+    "com.unity.xr.openxr": "1.16.1"
+  },
+  "keywords": [
+    "avatar",
+    "humanoid",
+    "vertexform3d",
+    "xr"
+  ],
+  "author": {
+    "name": "VertexForm3D GHA Contributors"
+  }
+}
