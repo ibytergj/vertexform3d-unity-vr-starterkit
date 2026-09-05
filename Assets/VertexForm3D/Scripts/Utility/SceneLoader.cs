@@ -14,6 +14,12 @@ namespace VertexFormCore
     public class SceneLoader : MonoBehaviour
     {
         public static SceneLoader Instance;
+
+        /// <summary>
+        /// Raised immediately before a requested world-scene transition begins.
+        /// Feature integrations can use it to cancel previews and release scene-local resources.
+        /// </summary>
+        public static event Action<string> SceneLoadStarting;
         public bool isFlyModeEnabled;
         public float completePerchantage;
         public bool isCesiumScene;
@@ -72,6 +78,7 @@ namespace VertexFormCore
             sceneIsLoaded = false;
             if (loadSceneCoroutine == null)
             {
+                SceneLoadStarting?.Invoke(SceneName);
                 loadSceneCoroutine = StartCoroutine(WaitToLeveThenLoadScene(SceneName));
             }
         }
@@ -229,21 +236,35 @@ namespace VertexFormCore
             // 1) Activate the world scene so RenderSettings (skybox/ambient/fog) match it.
             //    Defer DynamicGI.UpdateEnvironment() by a frame so the first post-activation
             //    frame stays cheap — UpdateEnvironment is a known spike on Android GLES.
-            if (TryResolveWorldScene(out var worldScene) && worldScene.isLoaded)
+            const float worldResolveTimeout = 10f;
+            float waitedForWorld = 0f;
+            Scene worldScene;
+            while ((!TryResolveWorldScene(out worldScene) || !worldScene.isLoaded) &&
+                   waitedForWorld < worldResolveTimeout)
+            {
+                waitedForWorld += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            bool worldResolved = worldScene.IsValid() && worldScene.isLoaded;
+            if (worldResolved)
             {
                 if (SceneManager.GetActiveScene() != worldScene)
                 {
                     SceneManager.SetActiveScene(worldScene);
                     Debug.Log($"[SceneLoader] Active scene set to \"{worldScene.name}\" (path: {worldScene.path}).");
                 }
+
+                DisableWorldSceneEventSystems(worldScene);
             }
             else
             {
-                Debug.LogWarning($"[SceneLoader] Finalize: could not resolve loaded world scene for key \"{sceneName}\".");
+                Debug.LogWarning($"[SceneLoader] Finalize: world scene for key \"{sceneName}\" did not become resolvable within {worldResolveTimeout:0} seconds.");
             }
 
             yield return null;
-            DynamicGI.UpdateEnvironment();
+            if (worldResolved)
+                DynamicGI.UpdateEnvironment();
 
             // 2) Let the renderer present a couple of frames so VR head tracking stays fluid
             //    before we start the unload pass.
@@ -287,6 +308,18 @@ namespace VertexFormCore
             completePerchantage = 100f;
 
             Debug.Log($"[SceneLoader] Finalize complete for: {sceneName}");
+        }
+
+        private static void DisableWorldSceneEventSystems(Scene worldScene)
+        {
+            foreach (GameObject root in worldScene.GetRootGameObjects())
+            {
+                foreach (var eventSystem in root.GetComponentsInChildren<UnityEngine.EventSystems.EventSystem>(true))
+                {
+                    eventSystem.gameObject.SetActive(false);
+                    Debug.Log($"[SceneLoader] Disabled extra EventSystem \"{eventSystem.gameObject.name}\" in world scene \"{worldScene.name}\"; host scene owns UI input.");
+                }
+            }
         }
 
         /// <summary>

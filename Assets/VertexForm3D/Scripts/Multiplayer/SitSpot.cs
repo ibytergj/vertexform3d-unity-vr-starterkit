@@ -15,6 +15,8 @@ public class SitSpot : NetworkBehaviour
 
     [Networked] public bool isOccupied { get; set; }
     public Transform SitPoint;
+    [Tooltip("Optional humanoid hips target used after the seated loop is established. SitPoint remains the player/root anchor.")]
+    public Transform SeatedPelvisTarget;
 
     [SerializeField] private float interactionRange = 1.2f;
     [SerializeField] private float movementThreshold = 0.3f; // Distance threshold to detect movement
@@ -206,6 +208,13 @@ public class SitSpot : NetworkBehaviour
             DrawCrosshair(SitPoint.position, 0.15f);
             Gizmos.color = new Color(1f, 0.5f, 0f); // Orange color
             DrawArrowWithHandles(SitPoint.position, SitPoint.position + SitPoint.forward * 0.12f);
+        }
+
+        if (SeatedPelvisTarget != null)
+        {
+            Gizmos.color = Color.magenta;
+            DrawCrosshair(SeatedPelvisTarget.position, 0.12f);
+            Gizmos.DrawWireSphere(SeatedPelvisTarget.position, 0.06f);
         }
     }
 

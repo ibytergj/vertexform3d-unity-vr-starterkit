@@ -126,6 +126,13 @@ namespace VertexFormCore
             rightHandParent.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// When true, an external avatar integration owns avatar preview and construction.
+        /// The stock selection UI remains available, but stock avatar prefabs are not
+        /// instantiated or reactivated. Leave false for the standard VertexForm behavior.
+        /// </summary>
+        public static bool SuppressLegacyAvatars;
+
         public void InitializeAvatarSystem()
         {
             OnTapCustomAvatarSelection();
@@ -135,7 +142,10 @@ namespace VertexFormCore
         {
             avatarSelectionNumber = PlayerPrefs.GetInt(MultiplayerVRConstants.AVATAR_SELECTION_NUMBER);
             ActivateAvatarModelAt(avatarSelectionNumber);
-            customAvatarSelection.SetActive(true);
+            if (!SuppressLegacyAvatars)
+            {
+                customAvatarSelection.SetActive(true);
+            }
             customAvatarSelectionUI.SetActive(true);
             if (customAvatarSelectionUI.activeInHierarchy)
             {
@@ -189,6 +199,11 @@ namespace VertexFormCore
         /// <param name="avatarIndex"></param>
         private void ActivateAvatarModelAt(int avatarIndex)
         {
+            if (SuppressLegacyAvatars)
+            {
+                return;
+            }
+
             ClearChildren(headParent);
             ClearChildren(headTransform);
             ClearChildren(bodyTransform);

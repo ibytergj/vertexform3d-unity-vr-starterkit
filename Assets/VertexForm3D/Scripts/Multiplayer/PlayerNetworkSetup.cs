@@ -96,8 +96,20 @@ namespace VertexFormCore
             }
         }
 
+        /// <summary>
+        /// Optional provider-neutral avatar construction hook. Return true when an
+        /// external integration owns construction for this player; returning false
+        /// preserves the standard VertexForm head/body prefab path.
+        /// </summary>
+        public static System.Func<PlayerNetworkSetup, int, bool> AvatarConstructionOverride;
+
         public void InitializeSelectedAvatarModel(int avatarSelectionNumber)
         {
+            if (AvatarConstructionOverride != null && AvatarConstructionOverride(this, avatarSelectionNumber))
+            {
+                return;
+            }
+
             AvatarInputConverter avatarInputConverter = LocalXRRigGameobject.GetComponent<AvatarInputConverter>();
             Debug.Log("-->on selected avatar " + avatarSelectionNumber + "for mine? " + Object.HasInputAuthority);
 
@@ -359,12 +371,23 @@ namespace VertexFormCore
         /// <summary>True while the local player is seated (desktop: movement is skipped). Cleared when standing.</summary>
         public bool IsSitting { get; private set; }
         public bool IsSittingHeightFixed { get; private set; }
+        public event System.Action<bool> SittingStateChanged;
 
         /// <summary>Current seat (set when sitting). Used so movement input can trigger leave.</summary>
         private SitSpot _currentSitSpot;
+        public SitSpot CurrentSitSpot => _currentSitSpot;
 
         public void SetCurrentSitSpot(SitSpot spot) { _currentSitSpot = spot; }
         public void ClearCurrentSitSpot() { _currentSitSpot = null; }
+
+        private void SetSittingState(bool isSitting)
+        {
+            if (IsSitting == isSitting)
+                return;
+
+            IsSitting = isSitting;
+            SittingStateChanged?.Invoke(isSitting);
+        }
 
         /// <summary>Call when local player wants to stand (e.g. pressed move keys while sitting).</summary>
         public void LeaveCurrentSeatIfAny()
@@ -381,7 +404,7 @@ namespace VertexFormCore
             Debug.Log("SittingOnObject: " + sittingPosition.position + " " + sittingPosition.rotation + " " + Object.HasInputAuthority);
             if (!Object.HasInputAuthority || sittingPosition == null) return;
 
-            IsSitting = true;
+            SetSittingState(true);
             transform.position = sittingPosition.position;
             transform.rotation = sittingPosition.rotation;
 
@@ -397,28 +420,44 @@ namespace VertexFormCore
         }
         public void LeavingSeat()
         {
-            IsSitting = false;
+            SetSittingState(false);
         }
 
+        /// <summary>
+        /// Floor-tracked XR already reports the user's physical height. Preserve the authored
+        /// posture offsets for flat desktop/mobile, but never add them to an immersive XR rig.
+        /// </summary>
+        private float GetPostureCameraYOffset(float desktopOffset)
+        {
+            return NetworkedIsVrStyle() ? 0f : desktopOffset;
+        }
 
         public void SetSittingHeight(bool calledFromSitSpot)
         {
             if (calledFromSitSpot)
             {
-                IsSitting = true;
+                SetSittingState(true);
             }
             IsSittingHeightFixed = true;
-            cameraOffset.transform.localPosition = Vector3.up * sittingHeight;
+            Vector3 currentOffset = cameraOffset.transform.localPosition;
+            cameraOffset.transform.localPosition = new Vector3(
+                currentOffset.x,
+                GetPostureCameraYOffset(sittingHeight),
+                currentOffset.z);
         }
 
         public void SetStandingHeight(bool calledFromSitSpot)
         {
             if (calledFromSitSpot)
             {
-                IsSitting = false;
+                SetSittingState(false);
             }
             IsSittingHeightFixed = false;
-            cameraOffset.transform.localPosition = Vector3.up * standingHeight;
+            Vector3 currentOffset = cameraOffset.transform.localPosition;
+            cameraOffset.transform.localPosition = new Vector3(
+                currentOffset.x,
+                GetPostureCameraYOffset(standingHeight),
+                currentOffset.z);
             var xrRig = GetComponent<XRRigController>() ?? GetComponentInParent<XRRigController>() ?? GetComponentInChildren<XRRigController>();
             if (xrRig != null)
             {

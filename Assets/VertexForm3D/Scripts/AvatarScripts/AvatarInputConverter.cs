@@ -33,13 +33,21 @@ namespace VertexFormCore
 
         [Header("Camera Offset (adjusts Y when sitting)")]
         [SerializeField] private Transform cameraOffset;
-        private float _savedCameraOffsetY;
-        private bool _wasSitting;
+        private Vector3 _savedCameraOffsetLocalPosition;
+        private bool _hasSavedCameraOffset;
 
         void Start()
         {
-
+            if (playerNetworkSetup != null)
+                playerNetworkSetup.SittingStateChanged += OnSittingStateChanged;
         }
+
+        private void OnDestroy()
+        {
+            if (playerNetworkSetup != null)
+                playerNetworkSetup.SittingStateChanged -= OnSittingStateChanged;
+        }
+
         void Update()
         {
             if (networkObject != null)
@@ -52,15 +60,6 @@ namespace VertexFormCore
 
             bool isSitting = playerNetworkSetup != null && playerNetworkSetup.IsSitting;
 
-            if (cameraOffset != null)
-            {
-                if (isSitting && !_wasSitting)
-                    _savedCameraOffsetY = cameraOffset.localPosition.y;
-                else if (!isSitting && _wasSitting)
-                    cameraOffset.localPosition = new Vector3(cameraOffset.localPosition.x, _savedCameraOffsetY, cameraOffset.localPosition.z);
-            }
-            _wasSitting = isSitting;
-
             if (ProjectManager.instance.platforms.IsVrStylePlatform())
             {
                 Vector3 horizontalOffset = XRHead.TransformDirection(new Vector3(headPositionOffsetVR.x, 0, headPositionOffsetVR.z));
@@ -71,6 +70,8 @@ namespace VertexFormCore
                     {
                         AdjustCameraOffsetForSitting(headPositionOffsetVR.y);
                         MainAvatarTransform.position = Vector3.Lerp(MainAvatarTransform.position, new Vector3(XRHead.position.x, XRHead.position.y + headPositionOffsetVR.y, XRHead.position.z), 0.5f);
+                        AvatarHead.rotation = Quaternion.Lerp(AvatarHead.rotation, XRHead.rotation, 0.5f);
+                        AvatarBody.rotation = Quaternion.Euler(0f, playerNetworkSetup.transform.rotation.eulerAngles.y, 0f);
                     }
                     else
                     {
@@ -107,8 +108,8 @@ namespace VertexFormCore
                     {
                         AdjustCameraOffsetForSitting(headPositionOffsetDesktop.y);
                         MainAvatarTransform.position = Vector3.Lerp(MainAvatarTransform.position, new Vector3(XRHead.position.x, XRHead.position.y + headPositionOffsetDesktop.y, XRHead.position.z), 0.5f);
-                        AvatarHead.rotation = new Quaternion(0, 0, 0, 1);
-                        AvatarBody.rotation = new Quaternion(0, 0, 0, 1);
+                        AvatarHead.rotation = Quaternion.Lerp(AvatarHead.rotation, XRHead.rotation, 0.5f);
+                        AvatarBody.rotation = Quaternion.Euler(0f, playerNetworkSetup.transform.rotation.eulerAngles.y, 0f);
                         if (XRHandController_Right != null)
                         {
                             AvatarHand_Right.localPosition = Vector3.Lerp(AvatarHand_Right.localPosition, baseRightControllerPos, 0.5f);
@@ -177,6 +178,48 @@ namespace VertexFormCore
 
             Vector3 lp = cameraOffset.localPosition;
             cameraOffset.localPosition = new Vector3(lp.x, lp.y + yDelta, lp.z);
+        }
+
+        private void OnSittingStateChanged(bool isSitting)
+        {
+            if (cameraOffset == null)
+                return;
+
+            if (isSitting)
+            {
+                _savedCameraOffsetLocalPosition = cameraOffset.localPosition;
+                _hasSavedCameraOffset = true;
+            }
+            else if (_hasSavedCameraOffset)
+            {
+                cameraOffset.localPosition = _savedCameraOffsetLocalPosition;
+                _hasSavedCameraOffset = false;
+            }
+        }
+
+        /// <summary>
+        /// Keeps the local viewpoint with a visual avatar that receives its final seated pelvis
+        /// correction. Only horizontal displacement is applied here; the existing seated-height
+        /// path continues to own camera Y. The original offset is restored on the stand event.
+        /// </summary>
+        public bool TryApplySeatedViewCorrection(Vector3 worldCorrection)
+        {
+            if (cameraOffset == null
+                || playerNetworkSetup == null
+                || !playerNetworkSetup.IsSitting)
+            {
+                return false;
+            }
+
+            Vector3 horizontalWorldCorrection = Vector3.ProjectOnPlane(worldCorrection, Vector3.up);
+            if (horizontalWorldCorrection.sqrMagnitude <= 0.000001f)
+                return false;
+
+            Vector3 localCorrection = cameraOffset.parent != null
+                ? cameraOffset.parent.InverseTransformVector(horizontalWorldCorrection)
+                : horizontalWorldCorrection;
+            cameraOffset.localPosition += localCorrection;
+            return true;
         }
 
         public void EnableControllerHands()
