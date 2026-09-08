@@ -2,7 +2,7 @@
 
 For Vertex Form3D maintainers reviewing the `Generic-Humanoid-Avatars` branch.
 
-**Review instructions — September 7, 2026. Full clean-install acceptance is pending.**
+**Review instructions — September 8, 2026.**
 Follow the steps below from a fresh clone of the review branch. Record the downloaded commit
 IDs with your results; this test is intended to verify the complete setup end to end.
 
@@ -115,6 +115,7 @@ Set-Location GHA-Review
 ```
 
 If your prompt already ends in `GHA-Review`, skip `Set-Location GHA-Review`.
+
 `../UMA` means the separate UMA folder beside GHA-Review. `-WhatIf` means **show the plan
 without installing anything**.
 
@@ -152,10 +153,8 @@ and the installed file counts. Those are the installation results, unlike the ea
 If the script reports an error, stop and include it in your test report. Otherwise continue to
 **step 4**, where Unity's provider installer builds the UMA asset library automatically.
 
-For a fresh clone, do not
-add `-ReplaceExisting`. For a deliberate replacement, use that switch in both commands; the
-previous installation is retained under `Temp/UMA-Backup-*`. Preserve the backup until the
-replacement is accepted. Close Unity if a lockfile blocks installation; do not delete a live lock.
+For this fresh-clone test, do not add `-ReplaceExisting`. Updating an existing installation is
+a separate workflow covered by the [maintainer setup contract](Packages/com.vertexform3d.gha.uma/Documentation~/SETUP.md).
 
 The script copies the reviewed UMA and SourceShaders content, excludes selected sample
 content, and exports 12 exact shader files from official develop `f4edf41ba` into **GHA only**.
@@ -167,6 +166,8 @@ The script does not fetch, pull, switch or modify the source repository.
 
 Open **GHA-Review**, not the separate UMA source project, in Unity 6000.3.11f1. Allow package
 resolution, asset import and C# compilation to finish. Do not enter Play Mode during setup.
+If import reports errors, compare them with the specific upstream issues under
+**Known limitations** below. Report other errors before continuing.
 
 **UMA library reminder:** copying the files in step 3 does not finish Unity setup. For this
 fresh installation, run the two integration installers below; **Install UMA Provider Layer**
@@ -188,10 +189,9 @@ UMA, use the provided installers in this order to establish local setup state:
 Keep the Editor in the foreground while compilation and domain reload finish. If either installer
 reports an error or patch conflict, stop before the next step and report the first relevant error.
 
-The installers configure the Home avatar, player prefabs and Avatar Studio, including their catalog,
-animation and slider references. The starting body type is Human Male; Human Female is also
-available. No manual assignment of race, T-pose or base recipe is needed. An existing saved
-avatar choice is preserved.
+The installers configure the Home avatar, player prefabs and Avatar Studio. Human Male is the
+default starting body type; Human Female is also available. An existing saved avatar choice
+is preserved.
 
 For this fresh setup, the provider installer creates the library at
 `Assets/UMAProjectData/Resources/AssetIndexerProject.asset` using the supplied default UMA assets.
@@ -199,8 +199,7 @@ Wait for indexing to finish before continuing. No custom assets or manual librar
 required. For existing-install upgrades, see the
 [maintainer setup contract](Packages/com.vertexform3d.gha.uma/Documentation~/SETUP.md).
 
-The symbols are `VERTEXFORM_GHA_HOST` and `VERTEXFORM_GHA_UMA`. Do **not** add `UMA_INSTALLED`:
-it currently enables an incompatible UMA 2 tooling bridge.
+The installers manage the required scripting symbols; no manual changes are needed.
 
 ## 5. Check the default UMA content and catalog
 
@@ -210,11 +209,10 @@ with the supported UMA installation; testers do not need to create or supply ass
 
 Do not use the deletion or Addressables-generation operations for this test. If the index is
 missing, references are unresolved or compilation fails, stop and report the first relevant error.
-See known limitations below for the outstanding upstream shader issue.
+See known limitations below for the outstanding upstream import issues.
 
-Inspect `Packages/com.vertexform3d.gha.uma/Runtime/Data/UmaAvatarCatalog.asset`. Enable stock and
-UMA avatars for the mixed-provider review. The catalog contains both human body types.
-Never reorder race, wardrobe, DNA or palette entries: their indices are saved/network IDs.
+The supplied catalog already enables Classic and UMA avatars and includes both human body types.
+No catalog edits are needed for this review.
 
 ## 6. Configure a desktop test
 
@@ -242,12 +240,14 @@ Record each result separately, including the first cold load and a repeated load
 | --- | --- |
 | Open Change Avatar | Avatar Studio has Classic and Custom provider tabs. |
 | Classic navigation | Previous/Next change the preview; Save Avatar uses shared button placement. |
+| Provider switching | Repeatedly switch Classic → Custom → Classic, including after closing/reopening the studio. Only the selected provider's preview is visible; no UMA preview remains on Classic. |
 | Custom categories | Body, Face, Colors and Outfits have persistent selection and distinct hover feedback. |
 | Outfit subsections | Chest, Feet, Hair and Legs indicate the selected subsection. |
 | Body type | Under Body, switch Male → Female → Male; the model and compatible outfit options change. |
 | Remembered choices | Switching back restores that type's in-session outfit choices, including None. |
 | Shape and color | Height, another body/face slider, skin, hair and eye controls update the preview. |
 | Save/reopen | Save, close/reopen the studio, then restart from LoginScene; the saved type and appearance return. |
+| Home mirror | Save Classic, then Custom, then Classic again. After each save, the mirror shows only the saved avatar, never both bodies together. |
 | Desktop animation | The player idles/moves through animation; hands are not held forward by VR tracking. |
 | Diagnostics | No new unexpected errors; report missing assets, pink materials and exceptions. |
 
@@ -274,18 +274,22 @@ Do not infer their results from an Editor or PC Link pass.
 
 ## Known limitations and verification status
 
-- **Acceptance:** the current fresh-clone review is in progress; the complete setup and
-  smoke-test checklist have not yet been accepted end to end.
+- **Review scope:** this checklist is for collecting fresh-install and functional test results,
+  not certifying a release. Report each platform and test separately.
 - **Loading stalls:** UMA generation still blocks the main thread. A loading label does not prove
   smooth headset frames; report timings and visible freezes.
-- **Body types:** compilation, isolated selector/state/recipe tests and dependency checks passed.
-  Actual male/female generation, save/reopen and VR acceptance remain pending.
-- **Existing desktop/VR:** the owner reported desktop arms fixed and VR reasonably working in the
-  development copy. This is not full regression or clean-install acceptance.
-- **Shaders:** the 12 repaired graphs imported successfully in the development copy.
-  `Assets/UMA/SRP/ShaderGraphs/Materials/UMA_SG_Diffuse.shadergraph` remains malformed in the
-  reviewed upstream revisions and is outside the repairs. Record that exact error separately;
-  do not dismiss other shader errors or pink active materials as the same issue.
+- **Upstream import issues:** the following were confirmed in the source assets and remain
+  unresolved. Record them separately; do not edit vendor assets to get through this review:
+
+  - UMA: a JSON parse/import error for
+    `Assets/UMA/SRP/ShaderGraphs/Materials/UMA_SG_Diffuse.shadergraph`, outside the 12 shader repairs.
+  - Vertex Form3D: SketchUp importer assertions for
+    `Assets/VertexForm3D/Example_Assets/Ocean Villa/Tree.skp`.
+  - Vertex Form3D: missing nested VRKeys prefab references in the `[ENVIRONMENT].prefab` assets
+    under `Assets/VertexForm3D/Example_Assets/LoginSceneAssets/` and `HomeSceneAssets/`.
+
+  These specific messages are not GHA installer failures. They are not a reason to dismiss
+  other errors, broken scene behavior or pink active materials; report those before continuing.
 - **Appearance:** some outfit thumbnails differ from materials, and lighting may wash out colors.
   These adjustments are deferred; include screenshots in feedback.
 
