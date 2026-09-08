@@ -40,24 +40,63 @@ namespace GHA.Integration.Editor
         private static readonly Vector3 PreviewLocalPosition = new(0.9f, -0.50f, 0f);
         private static readonly Vector3 PreviewLocalEuler = new(0f, 180f, 0f);
         private static readonly Vector3 PreviewLocalScale = Vector3.one * 0.40f;
+        // UMA's library rebuild starts UnloadUnusedAssets. Unity does not scan local
+        // variables on the execution stack; keep installation inputs rooted until saved.
+        private static UnityEngine.Object[] installationAssets;
 
         public static void InstallAssets()
         {
-            EnsureHostInstalled();
-            GhaIntegrationState state = GhaIntegrationStateStore.Load();
-            if (!state.umaInstalled)
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
+                throw new InvalidOperationException("Run the UMA installer after import/compilation, outside Play Mode.");
+            if (installationAssets != null)
+                throw new InvalidOperationException("UMA provider installation is already running.");
+            try
             {
-                state.umaSnapshots = GhaIntegrationStateStore.CaptureSnapshots(
-                    "uma",
-                    PlayerPrefabPaths.Concat(
-                        new[] { HomePrefabPath, PanelPrefabPath }));
+                InstallAssetsCore();
             }
+            catch
+            {
+                GhaIntegrationState failedState = GhaIntegrationStateStore.Load();
+                failedState.umaInstalled = false;
+                GhaIntegrationStateStore.Save(failedState);
+                throw;
+            }
+            finally
+            {
+                installationAssets = null;
+            }
+        }
+
+        private static void InstallAssetsCore()
+        {
+            EnsureHostInstalled();
+            GhaVertexFormAssetInstaller.ValidatePrefabTargets(
+                PlayerPrefabPaths.Concat(new[] { HomePrefabPath, PanelPrefabPath }));
             UmaAvatarCatalog catalog = LoadRequiredAsset<UmaAvatarCatalog>(CatalogPath);
             RuntimeAnimatorController previewController =
                 LoadRequiredAsset<RuntimeAnimatorController>(PreviewControllerPath);
             RuntimeAnimatorController runtimeController =
                 LoadRequiredAsset<RuntimeAnimatorController>(RuntimeControllerPath);
             Slider sliderPrefab = LoadSliderPrefab();
+            installationAssets = new UnityEngine.Object[] { catalog, previewController, runtimeController, sliderPrefab.gameObject };
+            ValidateCatalogBodyTypes(catalog);
+            UMAAssetIndexer indexer = EnsureAssetIndex(
+                UMAPathUtility.ProjectIndexerPath,
+                UMAPathUtility.ResolveInstallAssetPath("InternalDataStore/InGame/Resources/AssetIndexer.asset"),
+                out bool indexCreated);
+            if (indexCreated)
+                Debug.Log(
+                    $"GHA created the UMA asset index from the installed default UMA content at " +
+                    $"{AssetDatabase.GetAssetPath(indexer)} ({indexer.SerializedItems.Count} entries).");
+            GhaIntegrationState state = GhaIntegrationStateStore.Load();
+            if (state.umaSnapshots == null || state.umaSnapshots.Length == 0)
+            {
+                state.umaSnapshots = GhaIntegrationStateStore.CaptureSnapshots(
+                    "uma",
+                    PlayerPrefabPaths.Concat(
+                        new[] { HomePrefabPath, PanelPrefabPath }));
+                GhaIntegrationStateStore.Save(state);
+            }
 
             EnsureCatalogColorChannels(catalog);
             InstallPanelProvider(catalog, previewController, sliderPrefab);
@@ -65,14 +104,129 @@ namespace GHA.Integration.Editor
             foreach (string playerPrefabPath in PlayerPrefabPaths)
                 InstallPlayerProvider(playerPrefabPath, catalog, runtimeController);
 
-            state.umaInstalled = true;
-            GhaIntegrationStateStore.RecordInstalledHashes(state.umaSnapshots);
-            GhaIntegrationStateStore.Save(state);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            ValidateInstalledAssets(catalog, previewController, runtimeController, sliderPrefab);
+            GhaIntegrationStateStore.RecordInstalledHashes(state.umaSnapshots);
+            state.umaInstalled = true;
+            GhaIntegrationStateStore.Save(state);
             Debug.Log(
                 "GHA UMA provider assets installed: panel contribution, Home avatar/preview, " +
                 "and UmaAvatarBridge on both player prefabs.");
+        }
+
+        private static void ValidateCatalogBodyTypes(UmaAvatarCatalog catalog)
+        {
+            if (catalog == null || !catalog.IsHumanoidRace(catalog.defaultRaceId))
+                throw new InvalidOperationException("UMA catalog must specify a valid default Humanoid race with a T-pose and base recipe before installation.");
+            for (int id = 0; id < catalog.races.Count; id++)
+                if (!catalog.IsHumanoidRace(id))
+                    throw new InvalidOperationException($"UMA catalog race ID {id} needs a Humanoid race, T-pose and base recipe. Correct the catalog/import before installation.");
+        }
+
+        private static void ValidateInstalledAssets(UmaAvatarCatalog catalog,
+            RuntimeAnimatorController previewController, RuntimeAnimatorController runtimeController, Slider sliderPrefab)
+        {
+            ValidateCatalogBodyTypes(catalog);
+            GameObject panel = LoadRequiredAsset<GameObject>(PanelPrefabPath);
+            var provider = panel.GetComponent<UmaAvatarConfigurationProvider>();
+            RequireSavedReference(provider, "catalog", catalog, PanelPrefabPath);
+            RequireSavedReference(provider, "previewAnimationController", previewController, PanelPrefabPath);
+            RequireSavedReference(provider, "sliderPrefab", sliderPrefab, PanelPrefabPath);
+            GameObject home = LoadRequiredAsset<GameObject>(HomePrefabPath);
+            var homeAvatar = home.GetComponentInChildren<UmaHomeAvatar>(true);
+            RequireSavedReference(homeAvatar, "catalog", catalog, HomePrefabPath);
+            RequireSavedReference(homeAvatar, "animationController", runtimeController, HomePrefabPath);
+            foreach (string path in PlayerPrefabPaths)
+            {
+                var bridge = LoadRequiredAsset<GameObject>(path).GetComponent<UmaAvatarBridge>();
+                RequireSavedReference(bridge, "catalog", catalog, path);
+                RequireSavedReference(bridge, "animationController", runtimeController, path);
+            }
+        }
+
+        private static void RequireSavedReference(Component component, string propertyName,
+            UnityEngine.Object expected, string path)
+        {
+            if (component == null || expected == null ||
+                new SerializedObject(component).FindProperty(propertyName)?.objectReferenceValue != expected)
+                throw new InvalidOperationException($"UMA installation did not retain '{propertyName}' on '{path}'. Installation is incomplete; do not enter Play Mode.");
+        }
+
+        // Follow UMA's project-index / install-index precedence without initializing its
+        // singleton (which also creates a generator in the open scene). Existing data is
+        // never copied, replaced or rebuilt by the provider installer. First-time population
+        // uses UMA's rebuild API, restricted to the separately installed UMA content tree.
+        private static UMAAssetIndexer EnsureAssetIndex(
+            string projectIndexPath, string installIndexPath, out bool created)
+        {
+            created = false;
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isCompiling || EditorApplication.isUpdating)
+                throw new InvalidOperationException(
+                    "Wait until Unity is in Edit Mode and has finished importing and compiling before installing UMA.");
+
+            foreach (string path in new[] { projectIndexPath, installIndexPath })
+            {
+                UnityEngine.Object existing = AssetDatabase.LoadMainAssetAtPath(path);
+                if (existing is UMAAssetIndexer indexer)
+                    return indexer;
+                if (existing != null || System.IO.File.Exists(path) || System.IO.Directory.Exists(path))
+                    throw new InvalidOperationException(
+                        $"Cannot initialize UMA: {path} exists but is not a loadable UMAAssetIndexer. " +
+                        "Resolve the asset/import error before retrying; nothing has been overwritten.");
+            }
+
+            UMAPathUtility.EnsureAssetFolder(System.IO.Path.GetDirectoryName(projectIndexPath));
+            UMAAssetIndexer newIndexer = ScriptableObject.CreateInstance<UMAAssetIndexer>();
+            try
+            {
+                newIndexer.name = System.IO.Path.GetFileNameWithoutExtension(projectIndexPath);
+                newIndexer.BuildStringTypes();
+                newIndexer.DoInitialDictionaryLoad();
+                PopulateDefaultUmaIndex(newIndexer);
+                AssetDatabase.CreateAsset(newIndexer, projectIndexPath);
+                if (!AssetDatabase.Contains(newIndexer))
+                    throw new InvalidOperationException($"Unity could not create the UMA asset index at {projectIndexPath}.");
+                AssetDatabase.SaveAssetIfDirty(newIndexer);
+                created = true;
+                return newIndexer;
+            }
+            finally
+            {
+                if (!AssetDatabase.Contains(newIndexer))
+                    UnityEngine.Object.DestroyImmediate(newIndexer);
+            }
+        }
+
+        private static void PopulateDefaultUmaIndex(UMAAssetIndexer indexer)
+        {
+            if (!AssetDatabase.IsValidFolder(UMAPathUtility.LegacyInstallRoot))
+                throw new InvalidOperationException("Install the supported UMA content into Assets/UMA before installing its GHA provider.");
+
+            // Only the initial scan is scoped; do not impose permanent filters on future
+            // content authoring. The trailing slash excludes similarly named sibling folders.
+            foreach (Type type in indexer.GetTypes())
+                indexer.TypeFolderSearch[type.Name] =
+                    new System.Collections.Generic.List<string> { UMAPathUtility.LegacyInstallRoot + "/" };
+            try
+            {
+                indexer.RebuildLibrary();
+                foreach (string raceName in new[] { "Human Male 3.0", "Human Female 3.0" })
+                    if (indexer.GetAssetItem<RaceData>(raceName)?.Item == null)
+                        throw new InvalidOperationException(
+                            $"Default UMA content is incomplete: {raceName} was not indexed. " +
+                            "Check the supported UMA import and its errors, then retry installation.");
+                if (indexer.GetAssetItems<SlotDataAsset>().Count == 0 ||
+                    indexer.GetAssetItems<OverlayDataAsset>().Count == 0 ||
+                    indexer.GetAssetItems<UMA.CharacterSystem.UMAWardrobeRecipe>().Count == 0)
+                    throw new InvalidOperationException("Default UMA content is incomplete: slots, overlays or wardrobe recipes are missing.");
+            }
+            finally
+            {
+                indexer.TypeFolderSearch.Clear();
+                EditorUtility.ClearProgressBar();
+            }
         }
 
         private static void EnsureCatalogColorChannels(UmaAvatarCatalog catalog)
@@ -189,7 +343,7 @@ namespace GHA.Integration.Editor
                     previewController;
                 serialized.FindProperty("sliderPrefab").objectReferenceValue = sliderPrefab;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                PrefabUtility.SaveAsPrefabAsset(contents, PanelPrefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, PanelPrefabPath);
             }
             finally
             {
@@ -210,7 +364,7 @@ namespace GHA.Integration.Editor
                     contents.GetComponent<UmaAvatarConfigurationProvider>();
                 if (provider != null)
                     UnityEngine.Object.DestroyImmediate(provider);
-                PrefabUtility.SaveAsPrefabAsset(contents, PanelPrefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, PanelPrefabPath);
             }
             finally
             {
@@ -268,7 +422,7 @@ namespace GHA.Integration.Editor
                 anchor.localRotation = Quaternion.Euler(PreviewLocalEuler);
                 anchor.localScale = PreviewLocalScale;
 
-                PrefabUtility.SaveAsPrefabAsset(contents, HomePrefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, HomePrefabPath);
             }
             finally
             {
@@ -300,7 +454,7 @@ namespace GHA.Integration.Editor
                         : null;
                 if (anchor != null)
                     UnityEngine.Object.DestroyImmediate(anchor.gameObject);
-                PrefabUtility.SaveAsPrefabAsset(contents, HomePrefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, HomePrefabPath);
             }
             finally
             {
@@ -334,7 +488,7 @@ namespace GHA.Integration.Editor
                 serialized.FindProperty("idleTurnSpeed").floatValue = 200f;
                 serialized.FindProperty("faceMovementThreshold").floatValue = 0.6f;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, prefabPath);
             }
             finally
             {
@@ -352,7 +506,7 @@ namespace GHA.Integration.Editor
                 UmaAvatarBridge bridge = contents.GetComponent<UmaAvatarBridge>();
                 if (bridge != null)
                     UnityEngine.Object.DestroyImmediate(bridge);
-                PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+                GhaVertexFormAssetInstaller.SavePrefabChecked(contents, prefabPath);
             }
             finally
             {

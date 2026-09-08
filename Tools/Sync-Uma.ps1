@@ -10,6 +10,10 @@ omitted. Selected UMA authoring tools and their dependencies are retained even w
 beneath a pruned sample tree. Assets/UMA and Assets/UMA.meta must be ignored by the destination
 repository.
 
+For the c9204fe4 baseline only, imports the 12 reviewed shader repairs byte-for-byte from
+upstream develop commit f4edf41ba into the destination staging tree. The source master
+checkout stays verbatim; no local source commit or source .gitattributes change is required.
+
 UMA_INSTALLED is intentionally not added while AnkleBreaker's optional UMA integration targets
 the incompatible UMA 2 API. The retained define helper and call site should be revisited once
 AnkleBreaker supports UMA 3.
@@ -47,7 +51,7 @@ param(
     [string]$VertexProjectPath,
 
     [Parameter()]
-    [string]$ExpectedCommit = '0c69fee9b4871251d520ae2bfd84868b5a1646f3',
+    [string]$ExpectedCommit = 'c9204fe475b334162617da5ca923afcc6050e01e',
 
     [Parameter()]
     [switch]$ReplaceExisting
@@ -262,10 +266,43 @@ if ($sourceChanges.Count -ne 0) {
     throw 'The UMA source working tree is not clean. Refusing to copy an unreproducible source tree.'
 }
 
+# Read upstream Git objects without changing the source branch/index/files. This temporary
+# destination-only overlay is scoped to the reviewed old master, never applied over a newer pin.
+$shaderFixCommit = $null
+$shaderFixPaths = @()
+$shaderFixBlobs = @{}
+if ($ExpectedCommit -eq 'c9204fe475b334162617da5ca923afcc6050e01e') {
+    $shaderFixCommit = 'f4edf41ba1017b4a745fd1ba7286824332652b7d'
+    $shaderFixPaths = @(
+        'LitShaderAlpha.shadergraph',
+        'LitShaderOpaque.shadergraph',
+        'UMA3_Lit(Metal).shadergraph',
+        'UMA3_Lit(Specular).shadergraph',
+        'UMA3_Lit_Opaque(Metal).shadergraph',
+        'UMA3_Lit_Opaque(Specular).shadergraph',
+        'UMA3_SkinShader_URP.shadergraph',
+        'UMALitShader.shadergraph',
+        'UMALitShaderAlpha.shadergraph',
+        'UMALitShaderCutout 1.shadergraph',
+        'UMALitShaderCutout.shadergraph',
+        'UMALit_Specular_Shader.shadergraph'
+    ) | ForEach-Object { "UMAProject/Assets/UMA/SRP/ShaderGraphs/Graphs/$_" }
+    foreach ($path in $shaderFixPaths) {
+        & $gitCommand.Source -C $resolvedUmaRepository cat-file -e "${shaderFixCommit}:$path"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Required upstream shader repair is unavailable locally: ${shaderFixCommit}:$path. No source fetch or modification was performed."
+        }
+        $blob = & $gitCommand.Source -C $resolvedUmaRepository rev-parse "${shaderFixCommit}:$path"
+        if ($LASTEXITCODE -ne 0) { throw "Cannot resolve shader blob: $path" }
+        $shaderFixBlobs[$path] = $blob.Trim()
+    }
+}
+
+# The directory suffix is required before a fresh clone has these folders on disk.
 foreach ($ignoredPath in @(
-    'Assets/UMA',
+    'Assets/UMA/',
     'Assets/UMA.meta',
-    'Assets/SourceShaders',
+    'Assets/SourceShaders/',
     'Assets/SourceShaders.meta'
 )) {
     & $gitCommand.Source -C $resolvedVertexProject check-ignore --quiet --no-index -- $ignoredPath
@@ -341,6 +378,9 @@ foreach ($relativePath in $retainedAuthoringPaths) {
 }
 
 $operation = "Install UMA master commit $ExpectedCommit from '$resolvedUmaRepository' into '$destinationUma' and '$destinationSourceShaders'"
+if ($null -ne $shaderFixCommit) {
+    $operation += "; apply only the 12 upstream shader repairs from $shaderFixCommit to the destination (source unchanged)"
+}
 if (-not $PSCmdlet.ShouldProcess($resolvedVertexProject, $operation)) {
     return
 }
@@ -403,6 +443,27 @@ try {
     }
 
     Copy-Item -LiteralPath $sourceShaders -Destination $stagingSourceShaders -Recurse
+
+    if ($null -ne $shaderFixCommit) {
+        # ZIP preserves exact upstream blob bytes, bypassing working-tree newline conversion.
+        $shaderArchive = Join-Path $stagingRoot 'upstream-shader-repairs.zip'
+        $shaderExtract = Join-Path $stagingRoot 'upstream-shader-repairs'
+        & $gitCommand.Source -C $resolvedUmaRepository archive --format=zip "--output=$shaderArchive" $shaderFixCommit -- @shaderFixPaths
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to export the upstream shader repairs.' }
+        Expand-Archive -LiteralPath $shaderArchive -DestinationPath $shaderExtract
+        foreach ($path in $shaderFixPaths) {
+            $exportedPath = Join-Path $shaderExtract $path
+            $relativeUmaPath = $path.Substring('UMAProject/Assets/UMA/'.Length)
+            $stagedPath = Join-Path $stagingUma $relativeUmaPath
+            Assert-PathUnderRoot -Path $exportedPath -Root $stagingRoot
+            Assert-PathUnderRoot -Path $stagedPath -Root $stagingUma
+            $exportedBlob = & $gitCommand.Source -C $resolvedUmaRepository hash-object --no-filters -- $exportedPath
+            if ($LASTEXITCODE -ne 0 -or $exportedBlob -ne $shaderFixBlobs[$path]) {
+                throw "Export does not match the exact upstream shader blob: $path"
+            }
+            Copy-Item -LiteralPath $exportedPath -Destination $stagedPath -Force
+        }
+    }
 
     foreach ($relativePath in $retainedAuthoringPaths) {
         $sourcePath = Join-Path $sourceUma $relativePath.Replace('/', '\')
@@ -545,13 +606,16 @@ try {
     ).Sum
 
     Write-Output "Installed UMA base commit: $actualCommit"
+    if ($null -ne $shaderFixCommit) {
+        Write-Output "Destination-only shader repairs: 12 exact upstream blobs from $shaderFixCommit"
+    }
     Write-Output "Installed files: $($installedFiles.Count)"
     Write-Output "Installed bytes: $installedBytes"
     Write-Output "Installed source shader files: $($installedSourceShaderFiles.Count)"
     Write-Output "Installed source shader bytes: $installedSourceShaderBytes"
     Write-Output "Source checkout (unchanged): $resolvedUmaRepository [master]"
     Write-Output 'Retained UMA authoring tool: SRP/Samples/Scenes/U3-Tools-Photobooth.unity'
-    Write-Output 'Source AssetIndexer.asset excluded; rebuild the destination Global Library before Play Mode.'
+    Write-Output 'The source asset index was not copied. In step 4, the Unity UMA provider installer automatically creates and populates a missing index from the installed default UMA content.'
     Write-Output (
         'UMA_INSTALLED remains disabled pending UMA 3 support in AnkleBreaker; ' +
         'UMA itself does not consume this presence define.'
@@ -559,7 +623,7 @@ try {
     if ($null -ne $backupRoot) {
         Write-Output "Previous UMA backup retained at: $backupRoot"
     }
-    Write-Output 'Next step: open the Unity project and rebuild the UMA Global Library.'
+    Write-Output 'Next step: follow step 4 of GHA-GETTING-STARTED.md to open GHA in Unity and run the GHA Host and UMA Provider installers. Do not enter Play Mode until setup finishes.'
 }
 catch {
     if ($projectSettingsBackupCreated -and -not $installCompleted) {

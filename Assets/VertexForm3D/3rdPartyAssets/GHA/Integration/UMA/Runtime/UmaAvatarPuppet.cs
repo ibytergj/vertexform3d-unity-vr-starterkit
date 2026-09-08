@@ -178,9 +178,11 @@ namespace GHA.AvatarSuite
             _catalog = catalog;
             _lastRecipe = recipe;
             RaceData race = catalog != null ? catalog.Race(recipe.raceId) : null;
-            if (race == null)
+            if (catalog == null || !catalog.IsHumanoidRace(recipe.raceId))
             {
-                Debug.LogWarning("[UmaAvatarPuppet] No catalog/race available; cannot build avatar.");
+                Debug.LogError(catalog == null
+                    ? "[UmaAvatarPuppet] Avatar catalog is not assigned. Rerun Install UMA Provider Layer to wire the default catalog before building an avatar."
+                    : $"[UmaAvatarPuppet] Catalog '{catalog.name}', race ID {recipe.raceId}: race={(race != null ? race.raceName : "missing")}, target={(race != null ? race.umaTarget.ToString() : "missing")}, T-pose={race != null && race.TPose != null}, base recipe={race != null && race.baseRaceRecipe != null}. A complete Humanoid definition is required.");
                 return;
             }
 
@@ -189,8 +191,13 @@ namespace GHA.AvatarSuite
             if (firstBuild)
                 CreateAvatarObject(race);
 
-            if (!firstBuild && _dca.activeRace.name != race.raceName)
-                _dca.ChangeRace(race.raceName);
+            bool raceChanged = !firstBuild && _dca.activeRace.name != race.raceName;
+            if (raceChanged)
+            {
+                _dca.BuildCharacterEnabled = false;
+                _dca.cacheCurrentState = false; // The GHA wire recipe is authoritative.
+                _dca.ChangeRace(race, DynamicCharacterAvatar.ChangeRaceOptions.keepBodyColors);
+            }
 
             if (!firstBuild)
                 _dca.ClearSlots();
@@ -201,10 +208,9 @@ namespace GHA.AvatarSuite
                 foreach (int id in recipe.wardrobeIds)
                 {
                     UMAWardrobeRecipe wardrobe = catalog.Wardrobe(id);
-                    if (wardrobe != null)
+                    if (catalog.IsWardrobeCompatible(recipe.raceId, wardrobe))
                     {
-                        _dca.SetSlot(wardrobe);
-                        applied++;
+                        if (_dca.SetSlot(wardrobe)) applied++;
                     }
                 }
             }
@@ -219,7 +225,9 @@ namespace GHA.AvatarSuite
 
             // First build: configure and let the DCA's own Start() build — calling
             // BuildCharacter before Start drops the wardrobe (hard-won lesson).
-            if (!firstBuild)
+            if (raceChanged)
+                _dca.BuildCharacterEnabled = true; // Enabling builds the fully staged recipe once.
+            else if (!firstBuild)
                 _dca.BuildCharacter(true);
 
             Debug.Log($"[UmaAvatarPuppet] {(firstBuild ? "Configured initial" : "Rebuilt")} avatar on '{gameObject.name}' — race '{race.raceName}', {applied} wardrobe item(s), {(recipe.dna?.Count ?? 0)} dna, {(recipe.colors?.Count ?? 0)} color(s).");
@@ -304,6 +312,7 @@ namespace GHA.AvatarSuite
             _dca.activeRace.name = race.raceName;
             _dca.activeRace.data = race;
             _dca.loadFileOnStart = false;
+            _dca.cacheCurrentState = false;
             _dca.RecreateAnimatorOnRaceChange = true;
             if (animationController != null)
                 _dca.animationController = animationController;

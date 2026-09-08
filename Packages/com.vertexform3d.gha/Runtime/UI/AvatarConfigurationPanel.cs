@@ -389,6 +389,10 @@ namespace GHA.AvatarFramework.UI
     [DisallowMultipleComponent]
     public sealed class AvatarConfigurationPanel : MonoBehaviour
     {
+        private const float ContentTop = 0.835f;
+        private const float HeaderBottom = 0.865f;
+        private const float HeaderTop = 0.965f;
+
         private readonly List<ProviderView> _providerViews = new();
         private RectTransform _generatedRoot;
         private RectTransform _navigationRoot;
@@ -490,52 +494,37 @@ namespace GHA.AvatarFramework.UI
             BuildBackingFrame(_generatedRoot);
 
             RectTransform title = NewRect("Title", _generatedRoot);
-            title.anchorMin = new Vector2(0.035f, 0.905f);
-            title.anchorMax = new Vector2(0.965f, 0.975f);
+            title.anchorMin = new Vector2(0.52f, HeaderBottom);
+            title.anchorMax = new Vector2(0.965f, HeaderTop);
             title.offsetMin = Vector2.zero;
             title.offsetMax = Vector2.zero;
             TMP_Text titleLabel = CreateLabel(
                 title,
                 "AVATAR STUDIO",
                 42f,
-                TextAlignmentOptions.MidlineLeft,
+                TextAlignmentOptions.MidlineRight,
                 AvatarConfigurationTheme.TextPrimary);
             titleLabel.fontStyle = FontStyles.Bold;
             titleLabel.characterSpacing = 1.5f;
 
-            RectTransform subtitle = NewRect("Subtitle", _generatedRoot);
-            subtitle.anchorMin = new Vector2(0.035f, 0.852f);
-            subtitle.anchorMax = new Vector2(0.965f, 0.91f);
-            subtitle.offsetMin = Vector2.zero;
-            subtitle.offsetMax = Vector2.zero;
-            CreateLabel(
-                subtitle,
-                "Choose a style, then make it yours.",
-                21f,
-                TextAlignmentOptions.MidlineLeft,
-                AvatarConfigurationTheme.TextSecondary);
-
             _navigationRoot = NewRect("Provider Navigation", _generatedRoot);
-            _navigationRoot.anchorMin = new Vector2(0.035f, 0.755f);
-            _navigationRoot.anchorMax = new Vector2(0.965f, 0.835f);
+            _navigationRoot.anchorMin = new Vector2(0.035f, HeaderBottom);
+            _navigationRoot.anchorMax = new Vector2(0.49f, HeaderTop);
             _navigationRoot.offsetMin = Vector2.zero;
             _navigationRoot.offsetMax = Vector2.zero;
-            Image navBackground = _navigationRoot.gameObject.AddComponent<Image>();
-            navBackground.color = AvatarConfigurationTheme.Surface;
-            AvatarConfigurationTheme.ApplyRounded(navBackground);
-            AddBorder(_navigationRoot);
             HorizontalLayoutGroup navigationLayout =
                 _navigationRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
-            navigationLayout.padding = new RectOffset(8, 8, 8, 8);
+            navigationLayout.padding = new RectOffset(0, 0, 0, 0);
             navigationLayout.spacing = 8f;
+            navigationLayout.childAlignment = TextAnchor.MiddleLeft;
             navigationLayout.childControlWidth = true;
             navigationLayout.childControlHeight = true;
             navigationLayout.childForceExpandWidth = false;
-            navigationLayout.childForceExpandHeight = true;
+            navigationLayout.childForceExpandHeight = false;
 
             RectTransform previewCard = NewRect("Preview Card", _generatedRoot);
             previewCard.anchorMin = new Vector2(0.145f, 0.055f);
-            previewCard.anchorMax = new Vector2(0.54f, 0.72f);
+            previewCard.anchorMax = new Vector2(0.54f, ContentTop);
             previewCard.offsetMin = Vector2.zero;
             previewCard.offsetMax = Vector2.zero;
             Image previewImage = previewCard.gameObject.AddComponent<Image>();
@@ -565,7 +554,7 @@ namespace GHA.AvatarFramework.UI
 
             RectTransform categoryCard = NewRect("Category Card", _generatedRoot);
             categoryCard.anchorMin = new Vector2(0.035f, 0.055f);
-            categoryCard.anchorMax = new Vector2(0.125f, 0.72f);
+            categoryCard.anchorMax = new Vector2(0.125f, ContentTop);
             categoryCard.offsetMin = Vector2.zero;
             categoryCard.offsetMax = Vector2.zero;
             Image categoryImage = categoryCard.gameObject.AddComponent<Image>();
@@ -580,7 +569,7 @@ namespace GHA.AvatarFramework.UI
 
             RectTransform contentCard = NewRect("Controls Card", _generatedRoot);
             contentCard.anchorMin = new Vector2(0.56f, 0.055f);
-            contentCard.anchorMax = new Vector2(0.965f, 0.72f);
+            contentCard.anchorMax = new Vector2(0.965f, ContentTop);
             contentCard.offsetMin = Vector2.zero;
             contentCard.offsetMax = Vector2.zero;
             Image contentImage = contentCard.gameObject.AddComponent<Image>();
@@ -597,29 +586,8 @@ namespace GHA.AvatarFramework.UI
 
         private void AddProvider(IAvatarConfigurationPanelProvider provider)
         {
-            RectTransform buttonRoot = NewRect(provider.ProviderId + " Provider Button", _navigationRoot);
-            LayoutElement layout = buttonRoot.gameObject.AddComponent<LayoutElement>();
-            layout.preferredWidth = 220f;
-            layout.minHeight = 52f;
-            layout.flexibleWidth = 0f;
-
-            Image buttonImage = buttonRoot.gameObject.AddComponent<Image>();
-            buttonImage.color = AvatarConfigurationTheme.SurfaceRaised;
-            AvatarConfigurationTheme.ApplyRounded(buttonImage);
-            Button button = buttonRoot.gameObject.AddComponent<Button>();
-            AvatarConfigurationTheme.ConfigureButton(
-                button,
-                buttonImage,
-                AvatarConfigurationTheme.SurfaceRaised,
-                AvatarConfigurationTheme.SurfaceHover,
-                AvatarConfigurationTheme.AccentPressed);
-            TMP_Text buttonLabel = CreateLabel(
-                buttonRoot,
-                provider.DisplayName,
-                24f,
-                TextAlignmentOptions.Center,
-                AvatarConfigurationTheme.TextSecondary);
-            buttonLabel.fontStyle = FontStyles.Bold;
+            Button button = CreateProviderButton(provider.ProviderId, provider.DisplayName,
+                out Image buttonImage, out TMP_Text buttonLabel);
             button.onClick.AddListener(() => SelectProvider(provider.ProviderId));
 
             RectTransform categoryPanel = NewRect(
@@ -643,6 +611,41 @@ namespace GHA.AvatarFramework.UI
                 ButtonImage = buttonImage,
                 ButtonLabel = buttonLabel,
             });
+        }
+
+        private Button CreateProviderButton(string providerId, string displayName,
+            out Image buttonImage, out TMP_Text buttonLabel)
+        {
+            RectTransform buttonRoot = NewRect(providerId + " Provider Button", _navigationRoot);
+            LayoutElement layout = buttonRoot.gameObject.AddComponent<LayoutElement>();
+            layout.preferredWidth = 220f;
+            layout.minHeight = 52f;
+            layout.preferredHeight = 64f;
+            layout.flexibleWidth = 0f;
+
+            buttonImage = buttonRoot.gameObject.AddComponent<Image>();
+            buttonImage.color = AvatarConfigurationTheme.SurfaceRaised;
+            AvatarConfigurationTheme.ApplyRounded(buttonImage);
+            RectTransform border = NewRect("Border", buttonRoot);
+            FillParent(border);
+            Image borderImage = border.gameObject.AddComponent<Image>();
+            AvatarConfigurationTheme.ApplyRoundedBorder(borderImage);
+            borderImage.color = AvatarConfigurationTheme.OptionBorder;
+            Button button = buttonRoot.gameObject.AddComponent<Button>();
+            AvatarConfigurationTheme.ConfigureButton(
+                button,
+                buttonImage,
+                AvatarConfigurationTheme.SurfaceRaised,
+                AvatarConfigurationTheme.SurfaceHover,
+                AvatarConfigurationTheme.AccentPressed);
+            buttonLabel = CreateLabel(
+                buttonRoot,
+                displayName,
+                24f,
+                TextAlignmentOptions.Center,
+                AvatarConfigurationTheme.TextSecondary);
+            buttonLabel.fontStyle = FontStyles.Bold;
+            return button;
         }
 
         private void SelectProvider(string providerId)
@@ -709,28 +712,28 @@ namespace GHA.AvatarFramework.UI
 
         private static void BuildBackingFrame(RectTransform parent)
         {
-            AddBackingRegion(parent, "Header Backing", new Vector2(0f, 0.72f), Vector2.one);
+            AddBackingRegion(parent, "Header Backing", new Vector2(0f, ContentTop), Vector2.one);
             AddBackingRegion(parent, "Footer Backing", Vector2.zero, new Vector2(1f, 0.055f));
             AddBackingRegion(
                 parent,
                 "Left Backing",
                 new Vector2(0f, 0.055f),
-                new Vector2(0.035f, 0.72f));
+                new Vector2(0.035f, ContentTop));
             AddBackingRegion(
                 parent,
                 "Category Preview Gutter Backing",
                 new Vector2(0.125f, 0.055f),
-                new Vector2(0.145f, 0.72f));
+                new Vector2(0.145f, ContentTop));
             AddBackingRegion(
                 parent,
                 "Preview Controls Gutter Backing",
                 new Vector2(0.54f, 0.055f),
-                new Vector2(0.56f, 0.72f));
+                new Vector2(0.56f, ContentTop));
             AddBackingRegion(
                 parent,
                 "Right Backing",
                 new Vector2(0.965f, 0.055f),
-                new Vector2(1f, 0.72f));
+                new Vector2(1f, ContentTop));
         }
 
         private static void AddBackingRegion(

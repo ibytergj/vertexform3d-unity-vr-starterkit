@@ -134,7 +134,9 @@ namespace GHA.Integration.Editor
             }
             catch (Exception exception)
             {
-                Debug.LogError($"GHA integration operation '{operation}' failed: {exception}");
+                // A failed install is an explicit retry, not a surprise on the next domain reload.
+                EditorPrefs.DeleteKey(PendingKey);
+                Debug.LogError($"GHA integration operation '{operation}' failed. Resolve the error, then rerun the same Install menu; do not uninstall first. {exception}");
             }
         }
 

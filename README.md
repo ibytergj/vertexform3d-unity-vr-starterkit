@@ -1,5 +1,12 @@
 ## Recommended: Install the framework on the D:\ drive or an external hard drive.
 
+## GHA / UMA integration review
+
+On the `Generic-Humanoid-Avatars` branch, start with the
+[GHA / UMA getting-started and testing guide](GHA-GETTING-STARTED.md).
+It covers the separate UMA installation, Editor setup, desktop/VR checks and known limitations.
+Full fresh-checkout acceptance is pending; read the guide's status before testing.
+
 # **Vertex Form 3D Open Source VR Unity Starter Kit**  
 
 [![Watch the video](https://github.com/evgeniyasimmons/my-sandbox/raw/main/ShortVF3D.gif)](https://youtu.be/1Xt_7Uxr8T)  

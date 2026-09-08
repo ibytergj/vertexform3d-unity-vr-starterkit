@@ -1,5 +1,8 @@
 # VertexForm3D GHA UMA Adapter
 
+For installation and review, read the [getting-started and testing guide](../../GHA-GETTING-STARTED.md)
+first. It identifies fresh-install verification requirements and unverified runtime cases.
+
 `com.vertexform3d.gha.uma` is the optional UMA provider for
 `com.vertexform3d.gha`.
 
@@ -9,14 +12,17 @@ project.
 
 ## Supported UMA baseline
 
-- UMA release: 3.0.2
+- Exact upstream master baseline: `c9204fe475b334162617da5ca923afcc6050e01e`
+- Destination-only shader repairs: 12 exact files from upstream develop `f4edf41ba1017b4a745fd1ba7286824332652b7d`
 - Source repository layout: `UMAProject/Assets/UMA`
 - Vendor destination: `Assets/UMA`
 
-The provider package will supply an Editor setup workflow that verifies the selected UMA checkout,
-copies only the required vendor content, rebuilds the UMA Global Library, and creates project-owned
-configuration assets. Vendor content and credentials remain excluded from the integration
-change set.
+The current Windows copy workflow is `Tools/Sync-Uma.ps1`; it reads a clean upstream source
+checkout without modifying it. Editor menu installers configure the GHA host and UMA provider
+layers and automatically create and populate a missing UMA index from the default installed
+UMA content. A full fresh-checkout test is pending; a cross-platform setup workflow remains
+planned. See the [setup contract](Documentation~/SETUP.md) for details.
+Vendor content and credentials remain excluded from the integration change set.
 
 ## Dependency direction
 

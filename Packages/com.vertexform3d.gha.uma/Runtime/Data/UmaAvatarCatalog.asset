@@ -17,6 +17,7 @@ MonoBehaviour:
   defaultSystem: 1
   races:
   - {fileID: 11400000, guid: df173d6a708cd49499632fea0b0056d5, type: 2}
+  - {fileID: 11400000, guid: 51d130ee268a6114795dfc4590efb404, type: 2}
   wardrobeRecipes:
   - {fileID: 11400000, guid: 9d9f5b51a78e0f44a87f7fb7dd80795d, type: 2}
   - {fileID: 11400000, guid: 9962c28dfacdf1d41b3b420c64a157c7, type: 2}
@@ -35,12 +36,34 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 047de1958ad5cfe4ea70df1f1b57762d, type: 2}
   - {fileID: 11400000, guid: dc06686994618814d8a535837035651f, type: 2}
   - {fileID: 11400000, guid: 0e9919e9aa10fa04e9ad86d565261678, type: 2}
+  - {fileID: 11400000, guid: d0fbecde0d56e7f48af40b0615fffe3b, type: 2}
+  - {fileID: 11400000, guid: 2f3acfc4dd93b3c4faa2410e4255b666, type: 2}
+  - {fileID: 11400000, guid: 52676ceb565336a4f9508148418161ab, type: 2}
+  - {fileID: 11400000, guid: f0cf7145ad4ca614a950a661dcb5428e, type: 2}
+  - {fileID: 11400000, guid: 6a5d5cffdb7a32a40b564136a829eedf, type: 2}
+  - {fileID: 11400000, guid: 6c6a4d38cb8219542a36651aa79e38cd, type: 2}
+  - {fileID: 11400000, guid: 4b579de8cf2e7384e9d53efdfb680c3f, type: 2}
   defaultWardrobe:
   - {fileID: 11400000, guid: 9d9f5b51a78e0f44a87f7fb7dd80795d, type: 2}
   - {fileID: 11400000, guid: 9962c28dfacdf1d41b3b420c64a157c7, type: 2}
   - {fileID: 11400000, guid: 511aa62754b82734e8a3ef2c7730b4d1, type: 2}
   - {fileID: 11400000, guid: b96d745dbf37c664ab3490d93c510c16, type: 2}
   defaultRaceId: 0
+  bodyTypes:
+  - race: {fileID: 11400000, guid: df173d6a708cd49499632fea0b0056d5, type: 2}
+    label: Human Male
+    startingWardrobe:
+    - {fileID: 11400000, guid: 9d9f5b51a78e0f44a87f7fb7dd80795d, type: 2}
+    - {fileID: 11400000, guid: 9962c28dfacdf1d41b3b420c64a157c7, type: 2}
+    - {fileID: 11400000, guid: 511aa62754b82734e8a3ef2c7730b4d1, type: 2}
+    - {fileID: 11400000, guid: b96d745dbf37c664ab3490d93c510c16, type: 2}
+  - race: {fileID: 11400000, guid: 51d130ee268a6114795dfc4590efb404, type: 2}
+    label: Human Female
+    startingWardrobe:
+    - {fileID: 11400000, guid: d0fbecde0d56e7f48af40b0615fffe3b, type: 2}
+    - {fileID: 11400000, guid: f0cf7145ad4ca614a950a661dcb5428e, type: 2}
+    - {fileID: 11400000, guid: 6c6a4d38cb8219542a36651aa79e38cd, type: 2}
+    - {fileID: 11400000, guid: 511aa62754b82734e8a3ef2c7730b4d1, type: 2}
   dnaNames:
   - height
   - upperMuscle

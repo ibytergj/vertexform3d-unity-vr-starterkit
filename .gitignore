@@ -81,3 +81,10 @@ Assets/VertexForm3D/Scripts/Editor/Vertexform3d Editor/VertexForm3DPackageExport
 /Assets/UMA.meta
 /Assets/SourceShaders/
 /Assets/SourceShaders.meta
+# Generated locally by the UMA provider installer; never copy another project's index.
+/Assets/UMAProjectData/Resources/AssetIndexerProject.asset
+/Assets/UMAProjectData/Resources/AssetIndexerProject.asset.meta
+Assets/Screenshots/
+Assets/_Recovery/
+Assets/_Recovery.meta
+Assets/Screenshots.meta

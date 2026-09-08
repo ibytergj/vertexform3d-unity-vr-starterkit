@@ -26,12 +26,40 @@ namespace GHA.Integration.Editor
 
         public static void InstallAssets()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isCompiling || EditorApplication.isUpdating)
+                throw new InvalidOperationException("Wait for Unity to finish importing/compiling and exit Play Mode before installing GHA.");
+
+            try
+            {
+                InstallAssetsCore();
+            }
+            catch
+            {
+                // A previous run may have reported success despite a failed prefab save.
+                // Retain recovery snapshots, but never leave a failed attempt marked installed.
+                GhaIntegrationState failedState = GhaIntegrationStateStore.Load();
+                failedState.hostInstalled = false;
+                GhaIntegrationStateStore.Save(failedState);
+                throw;
+            }
+        }
+
+        private static void InstallAssetsCore()
+        {
+            ValidatePrefabTargets(PlayerPrefabPaths.Concat(new[] { HomePrefabPath }));
+            if (System.IO.File.Exists(PanelPrefabPath))
+                ValidatePrefabTargets(new[] { PanelPrefabPath });
+            ValidateHomeStation(AssetDatabase.LoadAssetAtPath<GameObject>(HomePrefabPath));
+
             GhaIntegrationState state = GhaIntegrationStateStore.Load();
-            if (!state.hostInstalled)
+            if (state.hostSnapshots == null || state.hostSnapshots.Length == 0)
             {
                 state.hostSnapshots = GhaIntegrationStateStore.CaptureSnapshots(
                     "host",
                     PlayerPrefabPaths.Concat(new[] { HomePrefabPath }));
+                // Persist before the first asset edit, so a retry cannot replace the originals.
+                GhaIntegrationStateStore.Save(state);
             }
             GhaFileSnapshot[] hostSnapshots = state.hostSnapshots;
             EnsureFolder(GeneratedFolder);
@@ -44,11 +72,10 @@ namespace GHA.Integration.Editor
             // saving layer metadata so this stale state instance cannot overwrite them.
             state = GhaIntegrationStateStore.Load();
             state.hostSnapshots = hostSnapshots;
-            state.hostInstalled = true;
             GhaIntegrationStateStore.RecordInstalledHashes(state.hostSnapshots);
-            GhaIntegrationStateStore.Save(state);
-            AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            state.hostInstalled = true;
+            GhaIntegrationStateStore.Save(state);
             Debug.Log(
                 "GHA host assets installed: provider-neutral panel, Home Change Avatar integration, " +
                 "and AvatarExtensionSync on both player prefabs.");
@@ -90,7 +117,7 @@ namespace GHA.Integration.Editor
                 try
                 {
                     Stretch((RectTransform)root.transform);
-                    existing = PrefabUtility.SaveAsPrefabAsset(root, PanelPrefabPath);
+                    existing = SavePrefabChecked(root, PanelPrefabPath);
                 }
                 finally
                 {
@@ -112,7 +139,7 @@ namespace GHA.Integration.Editor
                         throw new InvalidOperationException(
                             $"'{PanelPrefabPath}' must have a RectTransform root.");
                     Stretch(rect);
-                    existing = PrefabUtility.SaveAsPrefabAsset(contents, PanelPrefabPath);
+                    existing = SavePrefabChecked(contents, PanelPrefabPath);
                 }
                 finally
                 {
@@ -199,7 +226,7 @@ namespace GHA.Integration.Editor
                 rect.SetSiblingIndex(0);
                 panelInstance.SetActive(true);
                 EditorUtility.SetDirty(manager);
-                PrefabUtility.SaveAsPrefabAsset(contents, HomePrefabPath);
+                SavePrefabChecked(contents, HomePrefabPath);
             }
             finally
             {
@@ -254,7 +281,7 @@ namespace GHA.Integration.Editor
                 }
 
                 EditorUtility.SetDirty(manager);
-                PrefabUtility.SaveAsPrefabAsset(contents, HomePrefabPath);
+                SavePrefabChecked(contents, HomePrefabPath);
             }
             finally
             {
@@ -269,9 +296,10 @@ namespace GHA.Integration.Editor
             try
             {
                 contents = PrefabUtility.LoadPrefabContents(prefabPath);
-                if (contents.GetComponent<T>() == null)
-                    contents.AddComponent<T>();
-                PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+                if (contents.GetComponent<T>() != null)
+                    return;
+                contents.AddComponent<T>();
+                SavePrefabChecked(contents, prefabPath);
             }
             finally
             {
@@ -287,15 +315,57 @@ namespace GHA.Integration.Editor
             {
                 contents = PrefabUtility.LoadPrefabContents(prefabPath);
                 T component = contents.GetComponent<T>();
-                if (component != null)
-                    UnityEngine.Object.DestroyImmediate(component);
-                PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+                if (component == null)
+                    return;
+                UnityEngine.Object.DestroyImmediate(component);
+                SavePrefabChecked(contents, prefabPath);
             }
             finally
             {
                 if (contents != null)
                     PrefabUtility.UnloadPrefabContents(contents);
             }
+        }
+
+        internal static void ValidatePrefabTargets(System.Collections.Generic.IEnumerable<string> paths)
+        {
+            foreach (string path in paths)
+            {
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab == null || PrefabUtility.GetPrefabAssetType(prefab) == PrefabAssetType.NotAPrefab)
+                    throw new InvalidOperationException($"GHA cannot load required prefab '{path}'. Repair it before retrying installation.");
+                if ((System.IO.File.GetAttributes(path) & System.IO.FileAttributes.ReadOnly) != 0)
+                    throw new InvalidOperationException($"GHA cannot save read-only prefab '{path}'. Make it writable before retrying installation.");
+                foreach (Transform child in prefab.GetComponentsInChildren<Transform>(true))
+                {
+                    int missing = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(child.gameObject);
+                    if (missing != 0 || PrefabUtility.IsPrefabAssetMissing(child.gameObject))
+                        throw new InvalidOperationException(
+                            $"GHA cannot install into '{path}': '{child.name}' has {missing} missing script(s) or a missing nested prefab. " +
+                            "Repair the asset first, then rerun Install GHA Host Layer. No prefab changes were made by this preflight.");
+                }
+            }
+        }
+
+        internal static GameObject SavePrefabChecked(GameObject contents, string path)
+        {
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(contents, path, out bool success);
+            if (!success)
+                throw new InvalidOperationException(
+                    $"Unity failed to save GHA prefab '{path}'. Installation did not complete. " +
+                    "Resolve the preceding Console error and rerun the installer; do not uninstall first.");
+            return saved;
+        }
+
+        private static void ValidateHomeStation(GameObject contents)
+        {
+            AvatarSelectionManager manager = contents.GetComponentInChildren<AvatarSelectionManager>(true);
+            if (manager == null || manager.customAvatarSelectionUI == null)
+                throw new InvalidOperationException("HomeSceneComponent must expose AvatarSelectionManager.customAvatarSelectionUI.");
+            if (manager.customAvatarSelectionUI.GetComponentInChildren<Canvas>(true) == null)
+                throw new InvalidOperationException("The Change Avatar station has no Canvas.");
+            if (manager.customAvatarSelectionUI.transform.Find("AvatarHolder") == null)
+                throw new InvalidOperationException("The Change Avatar station has no AvatarHolder.");
         }
 
         private static void Stretch(RectTransform rect)

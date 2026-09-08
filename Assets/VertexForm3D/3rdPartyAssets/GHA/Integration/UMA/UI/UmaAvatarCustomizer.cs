@@ -110,6 +110,8 @@ namespace GHA.AvatarSuite
         private readonly Dictionary<int, int> _colors = new Dictionary<int, int>();     // channelId -> paletteIndex
         private readonly Dictionary<string, List<int>> _slotGroups = new Dictionary<string, List<int>>(); // wardrobeSlot -> catalog ids
         private readonly Dictionary<string, int> _slotSelection = new Dictionary<string, int>();           // wardrobeSlot -> selected catalog id (-1 = none)
+        private readonly Dictionary<int, Dictionary<string, int>> _raceWardrobeSelections =
+            new Dictionary<int, Dictionary<string, int>>();
 
         // Avatar systems: an extensible, ordered list the Type tab cycles through (Classic, UMA,
         // and any future systems). To add one: append a kind here, populate it in InitSystemMode,
@@ -251,6 +253,8 @@ namespace GHA.AvatarSuite
             _raceIndex = Mathf.Clamp(_recipe.raceId, 0, Mathf.Max(0, catalog.races.Count - 1));
 
             BuildSlotGroups();
+            _raceWardrobeSelections.Clear();
+            _slotSelection.Clear();
             // selection per slot from the recipe's wardrobe ids
             foreach (var kv in _slotGroups)
                 _slotSelection[kv.Key] = -1;
@@ -259,7 +263,7 @@ namespace GHA.AvatarSuite
                 foreach (int id in _recipe.wardrobeIds)
                 {
                     UMAWardrobeRecipe w = catalog.Wardrobe(id);
-                    if (w == null) continue;
+                    if (!catalog.IsWardrobeCompatible(_raceIndex, w)) continue;
                     string slot = SlotKey(w);
                     if (_slotGroups.ContainsKey(slot)) _slotSelection[slot] = id;
                 }
@@ -298,7 +302,7 @@ namespace GHA.AvatarSuite
             for (int id = 0; id < catalog.wardrobeRecipes.Count; id++)
             {
                 UMAWardrobeRecipe w = catalog.wardrobeRecipes[id];
-                if (w == null) continue;
+                if (!catalog.IsWardrobeCompatible(_raceIndex, w)) continue;
                 string slot = SlotKey(w);
                 if (!_slotGroups.TryGetValue(slot, out List<int> list))
                 {
@@ -539,6 +543,8 @@ namespace GHA.AvatarSuite
 
         private void ShowTab(Tab tab)
         {
+            _hoveredSlots.Clear();
+            RefreshSlotSelection();
             _activeTab = tab;
             foreach (var kv in _tabPanels)
                 kv.Value.SetActive(kv.Key == tab);
@@ -638,10 +644,7 @@ namespace GHA.AvatarSuite
             slotKeys.Sort();
             foreach (string slot in slotKeys)
             {
-                string captured = slot;
-                Button b = TextButton(rail, Prettify(slot), 20, () => SelectSlot(captured), out Image bImg);
-                b.gameObject.AddComponent<LayoutElement>().minHeight = 52f;
-                _slotRailButtons[slot] = bImg;
+                AddSlotButton(rail, slot);
             }
 
             // Option grid — fills the rest of the tab to the right of the rail. BuildScrollGrid
@@ -659,12 +662,56 @@ namespace GHA.AvatarSuite
         }
 
         private readonly Dictionary<string, Image> _slotRailButtons = new Dictionary<string, Image>();
+        private readonly Dictionary<string, Image> _slotRailBorders = new Dictionary<string, Image>();
+        private readonly HashSet<string> _hoveredSlots = new HashSet<string>();
+
+        private void AddSlotButton(RectTransform rail, string slot)
+        {
+            Button button = TextButton(rail, Prettify(slot), 20, () => SelectSlot(slot), out Image background);
+            button.gameObject.AddComponent<LayoutElement>().minHeight = 52f;
+            // Match the main categories: state owns the fill and an independent border.
+            // Neutral button tint prevents the persistent accent from being multiplied dark.
+            button.GetComponent<Outline>().enabled = false;
+            AvatarConfigurationTheme.ConfigureButton(button, background, Color.white, Color.white,
+                new Color(0.8f, 0.8f, 0.8f, 1f));
+            RectTransform borderRect = NewRect("StateBorder", button.transform);
+            FillParent(borderRect);
+            Image border = borderRect.gameObject.AddComponent<Image>();
+            AvatarConfigurationTheme.ApplyRoundedBorder(border);
+            _slotRailButtons[slot] = background;
+            _slotRailBorders[slot] = border;
+            ApplyTabBorder(border, TabBorderState.Idle);
+
+            EventTrigger pointerStates = button.gameObject.AddComponent<EventTrigger>();
+            pointerStates.triggers = new List<EventTrigger.Entry>();
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener(_ => SetSlotHover(slot, true));
+            pointerStates.triggers.Add(enter);
+            var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener(_ => SetSlotHover(slot, false));
+            pointerStates.triggers.Add(exit);
+        }
+
+        private void SetSlotHover(string slot, bool hovered)
+        {
+            if (hovered) _hoveredSlots.Add(slot);
+            else _hoveredSlots.Remove(slot);
+            RefreshSlotSelection();
+        }
+
+        private void RefreshSlotSelection()
+        {
+            foreach (var kv in _slotRailButtons)
+                kv.Value.color = kv.Key == _activeSlot ? Accent : TileBg;
+            foreach (var kv in _slotRailBorders)
+                ApplyTabBorder(kv.Value, kv.Key == _activeSlot ? TabBorderState.Active
+                    : _hoveredSlots.Contains(kv.Key) ? TabBorderState.Hovered : TabBorderState.Idle);
+        }
 
         private void SelectSlot(string slot)
         {
             _activeSlot = slot;
-            foreach (var kv in _slotRailButtons)
-                kv.Value.color = kv.Key == slot ? AccentSoft : TileBg;
+            RefreshSlotSelection();
             PopulateClothingGrid(slot);
         }
 
@@ -890,23 +937,96 @@ namespace GHA.AvatarSuite
             row.gameObject.AddComponent<LayoutElement>().minHeight = 56f;
             var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
             h.spacing = 8f;
+            h.childAlignment = TextAnchor.MiddleLeft;
             h.childControlWidth = h.childControlHeight = true;
-            h.childForceExpandHeight = true;
-            Label(row, "Race", 26, TextAlignmentOptions.Left, TextCol).gameObject.AddComponent<LayoutElement>().preferredWidth = 120f;
-            TextButton(row, "<", 30, () => CycleRace(-1), out _);
-            _raceValueLabel = Label(row, RaceDisplayName(), 26, TextAlignmentOptions.Center, TextCol);
+            h.childForceExpandWidth = h.childForceExpandHeight = false;
+            Label(row, "Body type", 24, TextAlignmentOptions.Left, TextCol).gameObject.AddComponent<LayoutElement>().preferredWidth = 132f;
+            Button previous = TextButton(row, "<", 30, () => CycleRace(-1), out _);
+            LayoutElement previousSize = previous.gameObject.AddComponent<LayoutElement>();
+            previousSize.minWidth = previousSize.preferredWidth = previousSize.preferredHeight = 56f;
+            _raceValueLabel = Label(row, BodyTypeLabel(), 26, TextAlignmentOptions.Center, TextCol);
             _raceValueLabel.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            TextButton(row, ">", 30, () => CycleRace(1), out _);
+            Button next = TextButton(row, ">", 30, () => CycleRace(1), out _);
+            LayoutElement nextSize = next.gameObject.AddComponent<LayoutElement>();
+            nextSize.minWidth = nextSize.preferredWidth = nextSize.preferredHeight = 56f;
         }
 
         private TMP_Text _raceValueLabel;
 
         private void CycleRace(int dir)
         {
-            if (catalog.races.Count == 0) return;
-            _raceIndex = (_raceIndex + dir + catalog.races.Count) % catalog.races.Count;
-            if (_raceValueLabel != null) _raceValueLabel.text = RaceDisplayName();
+            if (catalog.races.Count < 2 || dir == 0) return;
+            int next = _raceIndex;
+            for (int step = 0; step < catalog.races.Count; step++)
+            {
+                next = (next + (dir > 0 ? 1 : -1) + catalog.races.Count) % catalog.races.Count;
+                if (catalog.IsHumanoidRace(next)) break;
+            }
+            if (next == _raceIndex || !catalog.IsHumanoidRace(next)) return;
+            SwitchBodyType(next);
+            if (_raceValueLabel != null) _raceValueLabel.text = BodyTypeLabel();
+            RefreshClothingTab();
             RebuildPreview();
+        }
+
+        private string BodyTypeLabel()
+        {
+            var definition = catalog.BodyType(_raceIndex);
+            return definition != null && !string.IsNullOrWhiteSpace(definition.label)
+                ? definition.label : RaceDisplayName();
+        }
+
+        private void SwitchBodyType(int raceId)
+        {
+            if (!catalog.IsHumanoidRace(raceId) || raceId == _raceIndex) return;
+            var previous = new Dictionary<string, int>(_slotSelection);
+            _raceWardrobeSelections[_raceIndex] = previous;
+            _raceIndex = raceId;
+            BuildSlotGroups();
+            _slotSelection.Clear();
+            foreach (string slot in _slotGroups.Keys) _slotSelection[slot] = -1;
+
+            if (_raceWardrobeSelections.TryGetValue(raceId, out var remembered))
+            {
+                foreach (var entry in remembered)
+                    if (_slotGroups.ContainsKey(entry.Key) && (entry.Value < 0
+                        || catalog.IsWardrobeCompatible(raceId, catalog.Wardrobe(entry.Value))))
+                        _slotSelection[entry.Key] = entry.Value;
+            }
+            else
+            {
+                var definition = catalog.BodyType(raceId);
+                if (definition != null)
+                    foreach (var item in definition.startingWardrobe)
+                        if (catalog.IsWardrobeCompatible(raceId, item) && catalog.WardrobeId(item) >= 0)
+                            _slotSelection[SlotKey(item)] = catalog.WardrobeId(item);
+                // Keep explicitly selected compatible items (including shared hair), or None.
+                foreach (var entry in previous)
+                    if (_slotGroups.ContainsKey(entry.Key) && (entry.Value < 0
+                        || catalog.IsWardrobeCompatible(raceId, catalog.Wardrobe(entry.Value))))
+                        _slotSelection[entry.Key] = entry.Value;
+            }
+            SyncRecipe();
+        }
+
+        private void RefreshClothingTab()
+        {
+            if (!_tabPanels.TryGetValue(Tab.Clothing, out GameObject old) || old == null) return;
+            bool wasActive = old.activeSelf;
+            var parent = (RectTransform)old.transform.parent;
+            int sibling = old.transform.GetSiblingIndex();
+            string selectedSlot = _activeSlot;
+            old.SetActive(false);
+            Destroy(old);
+            _slotRailButtons.Clear();
+            _slotRailBorders.Clear();
+            _hoveredSlots.Clear();
+            GameObject rebuilt = BuildClothingTab(parent);
+            rebuilt.transform.SetSiblingIndex(sibling);
+            rebuilt.SetActive(wasActive);
+            _tabPanels[Tab.Clothing] = rebuilt;
+            if (selectedSlot != null && selectedSlot != _activeSlot && _slotGroups.ContainsKey(selectedSlot))
+                SelectSlot(selectedSlot);
         }
 
         // ---- Type tab: UMA / Classic ----
@@ -1139,7 +1259,11 @@ namespace GHA.AvatarSuite
             }
 
             RaceData race = catalog.Race(_recipe.raceId);
-            if (race == null) return;
+            if (!catalog.IsHumanoidRace(_recipe.raceId))
+            {
+                Debug.LogError("[UmaAvatarCustomizer] Selected body type needs a Humanoid race, T-pose and base recipe.");
+                return;
+            }
 
             if (_previewDca == null)
             {
@@ -1162,6 +1286,7 @@ namespace GHA.AvatarSuite
                 _previewDca.activeRace.name = race.raceName;
                 _previewDca.activeRace.data = race;
                 _previewDca.loadFileOnStart = false;
+                _previewDca.cacheCurrentState = false; // GHA's recipe and UI own the selected state.
                 _previewDca.RecreateAnimatorOnRaceChange = true;
                 if (previewAnimationController != null) _previewDca.animationController = previewAnimationController;
                 _previewDca.CharacterBegun = _previewDca.CharacterBegun ?? new UMADataEvent();
@@ -1177,14 +1302,22 @@ namespace GHA.AvatarSuite
             }
 
             if (!_previewDca.gameObject.activeSelf) _previewDca.gameObject.SetActive(true);
-            if (_previewDca.activeRace.name != race.raceName) _previewDca.ChangeRace(race.raceName);
+            bool raceChanged = _previewDca.activeRace.name != race.raceName;
+            if (raceChanged)
+            {
+                // ChangeRace normally builds immediately. Stage the full outfit/DNA/colors first.
+                _previewDca.BuildCharacterEnabled = false;
+                _previewDca.cacheCurrentState = false;
+                _previewDca.ChangeRace(race, DynamicCharacterAvatar.ChangeRaceOptions.keepBodyColors);
+            }
             _previewDca.ClearSlots();
             ApplyWardrobeToPreview();
             ApplyPreviewDna();
             ApplyPreviewColors(false);
             BeginPreviewLoadTiming("rebuild");
             ShowLoading(true); // shown this frame; the queued build runs (and hitches) next frame
-            _previewDca.BuildCharacter(true);
+            if (raceChanged) _previewDca.BuildCharacterEnabled = true; // Enabling performs the one build.
+            else _previewDca.BuildCharacter(true);
         }
 
         private void BeginPreviewLoadTiming(string buildKind)

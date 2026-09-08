@@ -27,6 +27,41 @@ namespace GHA.AvatarSuite
         public List<UMAWardrobeRecipe> defaultWardrobe = new List<UMAWardrobeRecipe>();
         public int defaultRaceId = 0;
 
+        [Header("Body types")]
+        [Tooltip("Presentation and explicit starting outfits for catalog races. Race wire IDs still come from the append-only races list.")]
+        public List<BodyTypeDef> bodyTypes = new List<BodyTypeDef>();
+
+        [System.Serializable]
+        public class BodyTypeDef
+        {
+            public RaceData race;
+            public string label;
+            public List<UMAWardrobeRecipe> startingWardrobe = new List<UMAWardrobeRecipe>();
+        }
+
+        public BodyTypeDef BodyType(int raceId) =>
+            raceId >= 0 && raceId < races.Count
+                ? bodyTypes.Find(entry => entry != null && entry.race == races[raceId]) : null;
+
+        // This validates the definition, not generated bone mapping or headset behavior.
+        public bool IsHumanoidRace(int raceId) =>
+            raceId >= 0 && raceId < races.Count && races[raceId] != null
+            && races[raceId].umaTarget == RaceData.UMATarget.Humanoid
+            && races[raceId].TPose != null && races[raceId].baseRaceRecipe != null;
+
+        public bool IsWardrobeCompatible(int raceId, UMAWardrobeRecipe wardrobe)
+        {
+            if (!IsHumanoidRace(raceId) || wardrobe == null
+                || string.IsNullOrEmpty(wardrobe.wardrobeSlot) || wardrobe.wardrobeSlot == "None")
+                return false;
+            RaceData race = races[raceId];
+            // An unassigned race list is not evidence of compatibility for curated content.
+            return race.wardrobeSlots.Contains(wardrobe.wardrobeSlot)
+                && wardrobe.compatibleRaces != null && wardrobe.compatibleRaces.Count > 0
+                && (wardrobe.compatibleRaces.Contains(race.raceName)
+                    || race.IsCrossCompatibleWith(wardrobe.compatibleRaces));
+        }
+
         [Header("Customizer V2 — DNA (body shape)")]
         [Tooltip("UMA DNA names exposed as body-shape sliders. APPEND-ONLY: wire id = list index, so never reorder/remove (it would break saved recipes). Names must match the race's DNA (e.g. height, headSize).")]
         public List<string> dnaNames = new List<string>

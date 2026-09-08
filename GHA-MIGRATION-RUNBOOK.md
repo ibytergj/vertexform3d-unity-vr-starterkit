@@ -1,6 +1,6 @@
 # QuantumVertex to Generic Humanoid Avatars Migration Runbook
 
-Status date: 2026-09-05  
+Status date: 2026-09-07
 Migration source: `E:\src\Unity\6000.3\QuantumVertex`  
 Migration target: `E:\src\Unity\6000.3\vertexform3d-unity-vr-starterkit-GHA`
 
@@ -88,6 +88,163 @@ slice.
 
 ## Current repository truth
 
+### September 7 UMA installer catalog-reference recovery
+
+The owner completed the test provider install at 18:51 EDT: 488 default index entries, successful
+compilation and no new errors. Subsequent Home runtime testing nevertheless failed the generic
+Humanoid guard. Inspection confirmed both human race definitions were valid, but the installed
+Home/player/panel catalog fields and panel slider had been saved as null. The earlier log/hash
+check established that files were saved, not that their required references were correct.
+
+UMA's `RebuildLibrary` starts asynchronous `Resources.UnloadUnusedAssets`; Unity does not retain
+assets referenced only from stack variables. This is consistent with the first-install reference
+loss. The provider installer now loads and statically roots its catalog/slider/controllers before
+index creation, releases those temporary roots in finally, validates default/all catalog Humanoid
+definitions, checks prefab-save results and verifies saved catalog/controller/slider references
+before marking the provider installed. Failed attempts clear installed status without replacing
+original snapshots. Runtime errors now distinguish an unassigned catalog from an invalid race.
+No runtime substitution, saved-choice reset, vendor edits or catalog ID/default changes were made.
+
+`Tools/ValidateUmaInstallerReferences.cs` passed seven Edit Mode checks in `E:/Test/GHA-Review`:
+retention through actual unused-asset cleanup; male default plus two complete human definitions;
+invalid default rejection; successful reference repair; byte-identical repeated install;
+post-install cleanup retention; and unchanged catalog, existing index and saved recipe. The
+corrected provider installer has already been rerun in the review project. Runtime retest is
+pending; Play Mode was not entered for this repair. This is not a new full fresh-clone acceptance.
+
+### September 7 clean-test host installer recovery
+
+Owner authorized removing the confirmed obsolete Cesium components and correcting the installer.
+Upstream commit `033e4cc4` intentionally removed Cesium but left CesiumGlobeAnchor script GUID
+`74f14e1eb550b9a4fb6c0a2f0456845b` on both player roots. Both development and `E:/Test/GHA-Review`
+player prefabs were repaired through Unity: exactly 39 lines removed per prefab, consisting only
+of that component record and its added-component attachment. Zero missing scripts remain; other
+component records and prefab metadata are preserved. No Cesium package was reinstalled.
+
+`GhaVertexFormAssetInstaller` now preflights its target prefabs and Home station before asset
+edits, checks every prefab-save result, skips unchanged player component saves, clears the
+installed flag on failure, and preserves the original recovery snapshots across retries.
+`GhaIntegrationBootstrap` clears failed pending operations and tells the owner to resolve the
+error and explicitly rerun the same menu, rather than retrying unexpectedly on domain reload.
+
+Unity 6000.3.11f1 compilation passed in both editors. `Tools/ValidateGhaHostInstaller.cs` passed
+eight checks in the test project: valid targets, missing-path rejection, full-install missing-script
+preflight rejection without prefab mutation, failed status/original snapshot preservation, failed
+Unity save propagation, successful repaired install, byte-identical second install, and one sync
+plus one UMA bridge per player with zero missing scripts. The deliberate save-failure case logs
+an expected error for a disposable `GhaHostInstallerValidation-*` prefab; temporary assets were
+removed. Play Mode was not entered. Host installation is complete in the current test copy;
+the owner's next menu is Install UMA Provider Layer, not another host install or uninstall.
+
+Historical uninstall snapshots in both local projects also contained the obsolete component.
+Preserved their originals under `Logs/ReviewTransfer/OriginalInstallBackups-20260907` in development,
+then removed only those same component/attachment records from the dormant `.backup` files.
+Unity reserialization of temporary copies added newer schema fields, so those results were rejected;
+the dormant backups were instead patched explicitly and compared to the exact expected deletion.
+Active prefab edits were all performed through Unity. Original active prefabs are retained under
+each project's `Logs/ReviewTransfer/CesiumRepair-*`. No source VertexForm/UMA repo changes,
+staging, commits or publication. Separate malformed UMA graph, inherited environment keyboard
+references and sample-model import assertions remain unresolved; full clean-install acceptance
+still requires a later fresh-clone test after the remaining issues are addressed.
+
+### September 7 external-review setup guide draft
+
+`GHA-GETTING-STARTED.md` is the reviewer entry point, linked from the root README and UMA
+package documentation. It covers public source revisions, Windows sync, integration menus,
+local configuration, Desktop/PC Link/two-client checks and known limitations. It is a draft,
+not a verified clean-machine install or approval to publish the current dirty worktree.
+
+The initially identified fresh-index gap is now implemented in `GhaUmaAssetInstaller`:
+when neither destination index exists, create and populate a project-owned index from the
+standard installed `Assets/UMA/` content using UMA's rebuild API. Validate both human races
+and slot/overlay/wardrobe entries before persisting it. Existing indexes are preserved;
+wrong-type/unloadable occupied paths stop installation without replacement. Do not copy
+the source-generated index. The new generated index and its metadata are ignored by Git.
+
+Owner clarified that first-time reviewers should use only the default UMA assets and should
+not have to manually rebuild a library. The guide now uses the automatic installer path,
+contains no Ready Player Me reference, and identifies Robocopy as included with Windows.
+
+Validation: Unity 6000.3.11f1 compilation passed. Isolated Edit Mode checks in
+`Tools/ValidateUmaIndexInitialization.cs` created 488 default-UMA-only entries including both
+human races, retained after asset unload/reload; preserved project/installation indexes and project-first precedence; rejected
+wrong-type occupied paths; and preserved the development project's actual index. Temporary
+test assets were removed. The initial CLI request exceeded Pipeline's 5-second response limit;
+the queued test subsequently completed and its SessionState report was retrieved successfully.
+No Play Mode test, complete installer rerun, clean-checkout acceptance, staging, commit or
+publication was performed. The owner will run the fresh-repository test after including the
+reviewed changes; cloning the currently published branch alone does not include this fix.
+Pre-publication testing does not require a local commit. At the owner's request, supply the
+intended uncommitted setup/UI files directly to the clean test clone, with a SHA-256 manifest
+outside that repository; exclude credentials, installed vendor content, generated caches and
+unrelated scene/project-setting edits. The base commit plus that manifest identifies the test
+snapshot. Keep subsequent test fixes reviewable before committing or publishing.
+
+The test-clone installer dry run exposed an additional first-install preflight defect:
+`git check-ignore` did not match directory-only ignore rules when the vendor folders did not
+exist yet. `Sync-Uma.ps1` now checks `Assets/UMA/` and `Assets/SourceShaders/` explicitly as
+directories, retaining the separate metadata checks and the requirement that vendor content
+be ignored. No placeholder vendor folders or bypasses are needed.
+
+### September 7 correction: keep the source UMA checkout verbatim
+
+Owner clarified that approval to use upstream develop shader files was not authorization to
+commit a backport on the source UMA master. The earlier approval characterization below was
+incorrect. The intended change was to GHA's installed UMA only.
+
+Removed agent-created commit `0c69fee9b` from the source master using `git reset --keep`
+after verifying exact HEAD, master branch, upstream parent and a clean working tree.
+`E:/src/Unity/6000.3/UMA` now matches official upstream commit `c9204fe4`, with clean
+index/working tree and 0 ahead / 0 behind its recorded origin/master. No revert commit, new
+branch, push, fetch, ignored-file cleanup, or source configuration change was made. Git's normal
+reflog still permits recovery; it does not add a commit to master.
+
+GHA's existing 12 repaired shader files are retained unchanged. `Tools/Sync-Uma.ps1` again pins
+official master `c9204fe4`, and for that baseline only exports exact shader blobs from official
+develop `f4edf41ba` into destination staging. It never changes source files/index/branch or
+requires `0c69fee9b`; no source `.gitattributes` alteration is needed. Missing upstream blobs
+stop the import. Review/remove this baseline-specific overlay when advancing the master pin.
+No full UMA sync or Unity Play Mode was run for this correction. GHA changes remain unstaged.
+Verification: PowerShell parsing and `Sync-Uma.ps1 -ReplaceExisting -WhatIf` passed. Executed
+the script's actual shader-export block against isolated staging under
+`Logs/UpstreamReview/ShaderSyncValidation-35946e6d9ee54f6e9bdb5357393544b9`: all 12 exports
+matched upstream Git blobs and GHA's installed SHA-256 values. Before/after hashes confirm all
+12 GHA shaders were unchanged by restoring the source. Source master remained clean and 0/0
+against recorded origin/master after validation. No new commits or pushes were made.
+
+### September 7 human body-type selector (runtime acceptance pending)
+
+`PROVISIONAL`: the Body tab now exposes Human Male / Human Female through the existing
+selector. `UmaAvatarCatalog.asset` retains male race ID 0 and wardrobe IDs 0-16 unchanged;
+female is appended at race ID 1, with seven female wardrobe entries at IDs 17-23. No vendor
+content was modified. All clients must ship the same expanded catalog.
+
+The catalog now owns explicit body-type labels and starter outfits. Outfit choices are filtered
+by authored UMA race/cross-compatibility and wardrobe slots; missing compatibility metadata is
+not treated as permission to equip. Shared hairstyles remain available to both types. Switching
+retains compatible choices and restores each type's selections (including None) within the open
+customizer session. DNA/color selections remain unchanged; Save Avatar persists the active
+type through the existing wire recipe. New types must provide Humanoid RaceData, T-pose and
+base recipe; that definition gate is not a substitute for generated-rig/VR acceptance.
+
+Preview and puppet race changes stage wardrobe/DNA/colors while UMA building is disabled,
+then enable one build. UMA's internal race-state cache is disabled on these GHA-owned avatars
+because the GHA recipe owns their state. Desktop/VR arm policy is otherwise unchanged.
+
+Verification: compilation completed with zero errors. `Tools/ValidateUmaHumanBodyTypes.cs`
+passed isolated Edit Mode checks for stable IDs, compatibility rejection, body-type clicks and
+wraparound, remembered outfits/None, shape/colors, wire encode/decode, all 17 exposed DNA names
+on both races, and selector dimensions. The actual Body controls were rendered and inspected at
+`Logs/AvatarStudio-Header-2026-09-07/body-type-verified.png`. A screenshot-cleanup error in the
+first capture was corrected; the validation was rerun. `Tools/PlanUmaStreaming.cs` found zero
+missing named dependencies, report `Logs/UMA-Streaming/content-plan-20260907-162859.json`.
+
+Play Mode was not entered for this change; permission has been requested. Outstanding: actual
+male/female build and back-switch, saving/reopening, Home/player reconstruction, animation,
+head hiding and arm IK in VR, remote reconstruction, and device performance. The earlier compact
+header and outfit-subsection highlight changes remain uncommitted alongside this work. Nothing
+has been staged, committed or pushed for these September 7 UI changes.
+
 ### September 5 checkpoint and desktop-arm acceptance
 
 The owner approved completing the staged VertexForm 1.1.9 merge and checkpointing
@@ -107,17 +264,18 @@ arm fix. Sensitive Photon configuration, unrelated local scene/settings changes,
 untracked authoring tools and generated files remain excluded and preserved.
 No push is included in this checkpoint approval.
 
-### September 5 approved UMA shader backport
+### September 5 UMA shader backport (source commit undone September 7)
 
-Owner approved a selective 13-file backport in the existing UMA repository.
+Historical record, superseded by the September 7 correction above: the agent incorrectly
+interpreted permission to use the shader fixes as permission to commit in the source repository.
 Local master commit `0c69fee9b4871251d520ae2bfd84868b5a1646f3` contains the exact
 12 shader graphs from `f4edf41ba1017b4a745fd1ba7286824332652b7d` plus
 `UMAProject/.gitattributes` from `800ee5e99da1d7486bd7c7c777b9579f6221a3d5`.
 Unrelated develop code, generated data, user settings and layouts were excluded.
-UMA is clean on master, one commit ahead of origin/master; no push was performed.
+At that time UMA was clean on master, one commit ahead of origin/master; no push was performed.
 The local commit must not be described as available from the official remote.
 
-`Tools/Sync-Uma.ps1` now pins the approved local commit. The owner requested applying
+`Tools/Sync-Uma.ps1` then pinned the local commit. The owner requested applying
 the approved fixes immediately after reporting pink rendering. The exact 12 shader
 files were copied from the owner's clean UMA checkout through the stopped GHA editor
 in one AssetDatabase editing batch. No other vendor files or metadata were replaced.
