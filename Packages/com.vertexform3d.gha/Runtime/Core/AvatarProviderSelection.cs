@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace GHA.AvatarFramework
@@ -10,6 +11,18 @@ namespace GHA.AvatarFramework
     {
         public const string ModePrefsKey = "GHA_AVATAR_MODE";
         private const string LegacyModePrefsKey = "QVAS_AVATAR_MODE";
+
+        /// <summary>Applies a saved choice to the current host, independently of preview tabs.</summary>
+        public static event Action SavedAvatarApplyRequested;
+
+        public static bool RequestApplySavedAvatar()
+        {
+            Action apply = SavedAvatarApplyRequested;
+            if (apply == null)
+                return false;
+            apply.Invoke();
+            return true;
+        }
 
         public static byte LoadMode(byte defaultMode = 0)
         {

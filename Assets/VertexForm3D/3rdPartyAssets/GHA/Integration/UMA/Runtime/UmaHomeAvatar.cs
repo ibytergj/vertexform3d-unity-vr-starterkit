@@ -39,6 +39,16 @@ namespace GHA.AvatarSuite
         private readonly HumanoidAvatarPresentationController _presentation =
             new HumanoidAvatarPresentationController();
 
+        private void OnEnable()
+        {
+            AvatarProviderSelection.SavedAvatarApplyRequested += Refresh;
+        }
+
+        private void OnDisable()
+        {
+            AvatarProviderSelection.SavedAvatarApplyRequested -= Refresh;
+        }
+
         private void Awake()
         {
             VertexFormCore.SceneLoader.SceneLoadStarting += OnSceneLoadStarting;
@@ -120,7 +130,7 @@ namespace GHA.AvatarSuite
             _puppet.LoadTimingHost = "home";
             _startupComplete = true;
 
-            if (delayInitialBuildUntilRequested)
+            if (delayInitialBuildUntilRequested && !_initialBuildRequested)
             {
                 _deferredLoadTraceId = AvatarLoadTimingLog.NewTraceId("deferred");
                 _deferredLoadStartedAt = AvatarLoadTimingLog.Now;
@@ -229,12 +239,21 @@ namespace GHA.AvatarSuite
         /// </summary>
         public void Refresh()
         {
+            // The Home host owns both embodiments. Selecting Classic must not return
+            // ownership to the legacy manager, which can reactivate it behind UMA.
+            VertexFormCore.AvatarSelectionManager.SuppressLegacyAvatars = true;
+            if (!_startupComplete)
+            {
+                _initialBuildRequested = true;
+                return;
+            }
+
             bool useUma = UmaRecipeStore.LoadMode(catalog) == AvatarSystemMode.Uma;
             Debug.Log($"[UmaHomeAvatar] Refresh â€” mode {(useUma ? "UMA" : "Classic")}, legacyRoot {(legacyAvatarRoot != null ? "ok" : "MISSING")}, puppet {(_puppet != null ? "ok" : "MISSING")}");
-            if (legacyAvatarRoot != null)
-                legacyAvatarRoot.SetActive(!useUma);
             if (useUma)
             {
+                if (legacyAvatarRoot != null)
+                    legacyAvatarRoot.SetActive(false);
                 if (_puppet != null)
                     _puppet.Build(catalog, UmaRecipeStore.LoadOrDefault(catalog));
             }
@@ -242,6 +261,8 @@ namespace GHA.AvatarSuite
             {
                 if (_puppet != null)
                     _puppet.Teardown();
+                if (legacyAvatarRoot != null)
+                    legacyAvatarRoot.SetActive(true);
                 BuildStockEmbodiment();
             }
         }
@@ -292,7 +313,10 @@ namespace GHA.AvatarSuite
         private static void ClearChildren(Transform parent)
         {
             for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                parent.GetChild(i).gameObject.SetActive(false);
                 Destroy(parent.GetChild(i).gameObject);
+            }
         }
     }
 }

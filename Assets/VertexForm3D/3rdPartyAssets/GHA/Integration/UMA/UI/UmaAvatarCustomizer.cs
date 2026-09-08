@@ -1,6 +1,7 @@
 #if VERTEXFORM_GHA_HOST && VERTEXFORM_GHA_UMA
 using System.Collections;
 using System.Collections.Generic;
+using GHA.AvatarFramework;
 using GHA.AvatarFramework.UI;
 using TMPro;
 using UMA;
@@ -1231,10 +1232,7 @@ namespace GHA.AvatarSuite
             }
             _saveRefreshPending = false;
 
-            var home = FindFirstObjectByType<UmaHomeAvatar>();
-            if (home != null)
-                home.Refresh();
-            else
+            if (!AvatarProviderSelection.RequestApplySavedAvatar())
                 Debug.LogError(
                     "[UmaAvatarCustomizer] No UmaHomeAvatar is installed on the Home rig; " +
                     "the saved avatar cannot be applied. Run Tools/GHA/Install Avatar Configuration UI.");
@@ -1244,7 +1242,7 @@ namespace GHA.AvatarSuite
 
         private void BuildPreview()
         {
-            if (_embeddedPanelMode && !_providerSelected)
+            if (!isActiveAndEnabled || !IsStationOpen() || (_embeddedPanelMode && !_providerSelected))
                 return;
 
             SyncRecipe();
@@ -1609,6 +1607,30 @@ namespace GHA.AvatarSuite
             return _root != null && _root.gameObject.activeInHierarchy;
         }
 
+        private void OnDisable()
+        {
+            // The preview is parented to the scene's authored anchor, not this UI.
+            // Closing the station or deselecting Custom must hide it immediately.
+            if (_previewDca != null)
+                _previewDca.gameObject.SetActive(false);
+        }
+
+        private void DestroyPreview()
+        {
+            if (_previewDca == null)
+                return;
+
+            DynamicCharacterAvatar preview = _previewDca;
+            _previewDca = null;
+            preview.CharacterBegun?.RemoveListener(OnPreviewCharacterBegun);
+            preview.CharacterUpdated?.RemoveListener(OnPreviewCharacterUpdated);
+            preview.gameObject.SetActive(false);
+            if (Application.isPlaying)
+                Destroy(preview.gameObject);
+            else
+                DestroyImmediate(preview.gameObject);
+        }
+
         private void OnSceneLoadStarting(string sceneName)
         {
             if (_previewLoadStartedAt >= 0d)
@@ -1638,15 +1660,14 @@ namespace GHA.AvatarSuite
                 _saveWaitStartedAt = -1d;
             }
 
-            if (_previewDca != null)
-            {
-                Destroy(_previewDca.gameObject);
-                _previewDca = null;
-            }
+            DestroyPreview();
         }
 
         private void OnDestroy()
         {
+            // Reopening/rebuilding the Studio destroys its old UI. Release the
+            // externally parented mannequin too, so no orphan remains visible.
+            DestroyPreview();
             if (changeAvatarButton != null)
                 changeAvatarButton.onClick.RemoveListener(OnDeferredChangeAvatarClicked);
             VertexFormCore.SceneLoader.SceneLoadStarting -= OnSceneLoadStarting;

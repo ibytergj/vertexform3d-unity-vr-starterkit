@@ -143,7 +143,7 @@ namespace VertexFormCore.GHAIntegration
             CreateSaveButton(root, () =>
             {
                 AvatarProviderSelection.SaveMode(Mode);
-                AvatarSelectionManager.SuppressLegacyAvatars = false;
+                AvatarProviderSelection.RequestApplySavedAvatar();
                 UpdateSelectionLabel(selection, "Saved");
             });
 

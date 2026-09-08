@@ -37,7 +37,7 @@ namespace GHA.Integration.Editor
             "Assets/VertexForm3D/Resources/NewGenericMRVRPrefab.prefab",
             "Assets/VertexForm3D/Resources/NewGenericMRDesktopPrefab.prefab"
         };
-        private static readonly Vector3 PreviewLocalPosition = new(0.9f, -0.50f, 0f);
+        private static readonly Vector3 PreviewLocalPosition = new(-0.35f, -0.50f, 0f);
         private static readonly Vector3 PreviewLocalEuler = new(0f, 180f, 0f);
         private static readonly Vector3 PreviewLocalScale = Vector3.one * 0.40f;
         // UMA's library rebuild starts UnloadUnusedAssets. Unity does not scan local
@@ -417,10 +417,11 @@ namespace GHA.Integration.Editor
                         new GameObject(UmaAvatarConfigurationProvider.PreviewAnchorName);
                     anchor = anchorObject.transform;
                     anchor.SetParent(manager.customAvatarSelectionUI.transform, false);
+                    anchor.localPosition = PreviewLocalPosition;
+                    anchor.localRotation = Quaternion.Euler(PreviewLocalEuler);
+                    anchor.localScale = PreviewLocalScale;
                 }
-                anchor.localPosition = PreviewLocalPosition;
-                anchor.localRotation = Quaternion.Euler(PreviewLocalEuler);
-                anchor.localScale = PreviewLocalScale;
+                // Existing anchors retain their authored framing on repeated installation.
 
                 GhaVertexFormAssetInstaller.SavePrefabChecked(contents, HomePrefabPath);
             }

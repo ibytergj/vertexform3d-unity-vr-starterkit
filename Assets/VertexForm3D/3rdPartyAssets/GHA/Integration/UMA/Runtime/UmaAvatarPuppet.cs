@@ -275,7 +275,11 @@ namespace GHA.AvatarSuite
         {
             CancelAvatarLoadTiming("TEARDOWN");
             if (_dcaRoot != null)
+            {
+                // Destroy is deferred until frame end. Hide the outgoing provider now.
+                _dcaRoot.SetActive(false);
                 Destroy(_dcaRoot);
+            }
             _dcaRoot = null;
             _dca = null;
             _avatarAnimator = null;
