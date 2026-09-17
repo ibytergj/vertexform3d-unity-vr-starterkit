@@ -5,6 +5,7 @@ For Vertex Form3D maintainers reviewing the `Generic-Humanoid-Avatars` branch.
 **Review instructions — September 8, 2026.**
 Follow the steps below from a fresh clone of the review branch. Record the downloaded commit
 IDs with your results; this test is intended to verify the complete setup end to end.
+In a hurry? The [quick setup appendix](#appendix-quick-setup) lists only the commands and clicks.
 
 ## What you are testing
 
@@ -310,3 +311,47 @@ trace. Redact credentials and unrelated information from logs before sharing.
 - [UMA adapter overview](Packages/com.vertexform3d.gha.uma/README.md)
 - [Migration status and acceptance matrix](GHA-MIGRATION-RUNBOOK.md)
 - [Official UMA race guide](https://github.com/umasteeringgroup/UMA/blob/master/UMAProject/Assets/UMA/Docs/CreatingANewRace.md)
+
+## Appendix: quick setup
+
+The same fresh-install procedure with the explanations removed. If any step reports an error,
+stop and use the matching numbered section above.
+
+**Needs:** Windows, Git, PowerShell, Unity **6000.3.11f1**, 25 GB free, a test Photon Fusion App ID.
+
+1. In a new, short-path folder, clone both repositories. Do not open either in Unity yet.
+
+   ```powershell
+   git clone --branch Generic-Humanoid-Avatars https://github.com/ibytergj/vertexform3d-unity-vr-starterkit.git GHA-Review
+   git clone --branch master --no-single-branch https://github.com/umasteeringgroup/UMA.git UMA
+   ```
+
+2. Install UMA into GHA. Answer `Y` at the single prompt.
+
+   ```powershell
+   Set-Location GHA-Review
+   ./Tools/Sync-Uma.ps1 -UmaRepositoryPath ../UMA
+   ```
+
+   Done when it prints `Installed UMA base commit: c9204fe475b334162617da5ca923afcc6050e01e`.
+   The script checks the UMA revision, clean working tree and shader repairs itself, and stops
+   if any is wrong.
+
+3. Open `GHA-Review` in Unity and wait for import and compilation to finish. Ignore only the
+   three import errors listed under **Known limitations**.
+4. Run **Tools > GHA > Integration > Install GHA Host Layer**. Wait for `GHA host assets installed`.
+5. Run **Tools > GHA > Integration > Install UMA Provider Layer**. Wait for
+   `GHA UMA provider assets installed`. Keep the Editor in the foreground during steps 4–5.
+6. Open **UMA > Global Library** and confirm `Human Male 3.0` and `Human Female 3.0` are present.
+7. **Vertex Form > Platform Selection** > **Desktop**.
+8. **Tools > Fusion > Realtime Settings**: enter the test App ID. Never commit it.
+9. Open `Assets/VertexForm3D/Scenes/Vertex Form 3D Scenes/LoginScene.unity`, press Play,
+   connect, then open **Change Avatar** in Home.
+
+Setup is complete when Avatar Studio shows the Classic and Custom tabs. Continue with the
+[smoke-test checklist](#7-desktop-smoke-test-checklist). For your report, record the revisions:
+
+```powershell
+git -C . rev-parse HEAD
+git -C ../UMA rev-parse HEAD
+```
