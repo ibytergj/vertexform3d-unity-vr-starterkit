@@ -98,6 +98,7 @@ namespace GHA.AvatarSuite
         private bool _previewBuildInProgress;
         private bool _previewRebuildQueued;
         private bool _previewNeedsBuild = true;
+        private bool _previewDnaApplyPending;
         private bool _saveRefreshPending;
         private string _saveWaitTraceId;
         private double _saveWaitStartedAt = -1d;
@@ -1292,7 +1293,7 @@ namespace GHA.AvatarSuite
                 _previewDca.CharacterUpdated = _previewDca.CharacterUpdated ?? new UMADataEvent();
                 _previewDca.CharacterUpdated.AddListener(OnPreviewCharacterUpdated);
                 ApplyWardrobeToPreview();
-                ApplyPreviewDna();
+                ApplyPreviewDna(true);
                 ApplyPreviewColors(false);
                 BeginPreviewLoadTiming("initial");
                 ShowLoading(true); // first build is the heaviest; the DCA builds on its next frame
@@ -1310,7 +1311,7 @@ namespace GHA.AvatarSuite
             }
             _previewDca.ClearSlots();
             ApplyWardrobeToPreview();
-            ApplyPreviewDna();
+            ApplyPreviewDna(raceChanged);
             ApplyPreviewColors(false);
             BeginPreviewLoadTiming("rebuild");
             ShowLoading(true); // shown this frame; the queued build runs (and hitches) next frame
@@ -1363,6 +1364,12 @@ namespace GHA.AvatarSuite
         private void OnPreviewCharacterUpdated(UMAData data)
         {
             ShowLoading(false);
+            if (_previewDnaApplyPending)
+            {
+                _previewDnaApplyPending = false;
+                if (TryApplyPreviewDnaToLiveRecipe())
+                    _previewDca.ForceUpdate(true, false, false); // DNA-only pass
+            }
             if (_previewLoadStartedAt < 0d)
                 return;
 
@@ -1397,8 +1404,13 @@ namespace GHA.AvatarSuite
             }
         }
 
-        private void ApplyPreviewDna()
+        // predefinedDNA is ignored by UMA for new-DNA races (the UMA 3 humans) and a rebuild
+        // restores the previous values, so the saved DNA is also written to the live recipe
+        // (before a plain rebuild) or applied once a first/race-change build lands. Same
+        // pattern as UmaAvatarPuppet.ApplyDna.
+        private void ApplyPreviewDna(bool applyAfterBuild)
         {
+            _previewDnaApplyPending = false;
             if (_previewDca == null || _dna.Count == 0) return;
             var pre = new UMAPredefinedDNA();
             foreach (var kv in _dna)
@@ -1408,6 +1420,28 @@ namespace GHA.AvatarSuite
             }
             _previewDca.predefinedDNA = pre;
             _previewDca.keepPredefinedDNA = true;
+
+            if (applyAfterBuild || !TryApplyPreviewDnaToLiveRecipe())
+                _previewDnaApplyPending = true;
+        }
+
+        private bool TryApplyPreviewDnaToLiveRecipe()
+        {
+            if (_previewDca == null || _previewDca.umaData == null || _previewDca.umaData.umaRecipe == null || _dna.Count == 0)
+                return false;
+            var setters = _previewDca.GetDNA();
+            if (setters == null || setters.Count == 0) return false;
+            bool applied = false;
+            foreach (var kv in _dna)
+            {
+                string n = catalog.DnaName(kv.Key);
+                if (!string.IsNullOrEmpty(n) && setters.TryGetValue(n, out DnaSetter setter))
+                {
+                    setter.Set(kv.Value / 255f);
+                    applied = true;
+                }
+            }
+            return applied;
         }
 
         private void ApplyPreviewColors(bool updateTexture)

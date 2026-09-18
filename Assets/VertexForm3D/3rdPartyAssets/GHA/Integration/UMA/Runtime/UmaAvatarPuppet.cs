@@ -77,6 +77,8 @@ namespace GHA.AvatarSuite
 
         private UmaAvatarCatalog _catalog;
         private AvatarWireRecipe _lastRecipe;
+        private bool _dnaApplyPending;
+        private bool _createdThisBuild;
         private AvatarInputConverter _inputConverter;
         private PlayerNetworkSetup _playerSetup;
         private VertexFormHumanoidRigInput _vertexRigInput;
@@ -216,8 +218,9 @@ namespace GHA.AvatarSuite
             }
 
             // DNA and complete UMA 3 color data are staged so the DCA bakes them during
-            // both its initial Start build and later rebuilds.
-            ApplyDna(recipe);
+            // both its initial Start build and later rebuilds. A first build or race change
+            // has no live recipe to write DNA into yet, so it is applied once that build lands.
+            ApplyDna(recipe, firstBuild || raceChanged);
             StageColors();
             LogAvatarLoadPhase(
                 "HOST_CONFIGURED",
@@ -233,9 +236,17 @@ namespace GHA.AvatarSuite
             Debug.Log($"[UmaAvatarPuppet] {(firstBuild ? "Configured initial" : "Rebuilt")} avatar on '{gameObject.name}' — race '{race.raceName}', {applied} wardrobe item(s), {(recipe.dna?.Count ?? 0)} dna, {(recipe.colors?.Count ?? 0)} color(s).");
         }
 
-        /// <summary>Loads the recipe's body-shape DNA into predefinedDNA so the build applies it.</summary>
-        private void ApplyDna(AvatarWireRecipe recipe)
+        /// <summary>
+        /// Stages the recipe's body-shape DNA. predefinedDNA only covers legacy-DNA races on
+        /// their first build: UMA's ApplyPredefinedDNA returns early for races that use the
+        /// new DNA system (the UMA 3 humans), and a rebuild restores the pre-rebuild values
+        /// afterwards. So the values are also written to the live recipe through the DNA
+        /// setters, exactly as the customizer sliders do, before a rebuild (RestoreDNA then
+        /// carries them) or after a first/race-change build lands (see OnCharacterUpdated).
+        /// </summary>
+        private void ApplyDna(AvatarWireRecipe recipe, bool applyAfterBuild)
         {
+            _dnaApplyPending = false;
             if (_dca == null || _catalog == null || recipe.dna == null || recipe.dna.Count == 0)
                 return;
             var pre = new UMAPredefinedDNA();
@@ -247,6 +258,31 @@ namespace GHA.AvatarSuite
             }
             _dca.predefinedDNA = pre;
             _dca.keepPredefinedDNA = true; // survive UMA's internal rebuilds
+
+            if (applyAfterBuild || !TryApplyDnaToLiveRecipe(recipe))
+                _dnaApplyPending = true;
+        }
+
+        /// <summary>Writes the recipe's DNA into the DCA's current recipe; false when there is none yet.</summary>
+        private bool TryApplyDnaToLiveRecipe(AvatarWireRecipe recipe)
+        {
+            if (_dca == null || _catalog == null || _dca.umaData == null || _dca.umaData.umaRecipe == null
+                || recipe.dna == null || recipe.dna.Count == 0)
+                return false;
+            var setters = _dca.GetDNA();
+            if (setters == null || setters.Count == 0)
+                return false;
+            bool applied = false;
+            foreach (DnaValue d in recipe.dna)
+            {
+                string dnaName = _catalog.DnaName(d.id);
+                if (!string.IsNullOrEmpty(dnaName) && setters.TryGetValue(dnaName, out DnaSetter setter))
+                {
+                    setter.Set(d.value / 255f);
+                    applied = true;
+                }
+            }
+            return applied;
         }
 
         /// <summary>Stages the recipe's complete UMA 3 color data for the next build.</summary>
@@ -282,6 +318,8 @@ namespace GHA.AvatarSuite
             }
             _dcaRoot = null;
             _dca = null;
+            _dnaApplyPending = false;
+            _createdThisBuild = false;
             _avatarAnimator = null;
             _postureAnimator.Bind(null);
             _headBone = null;
@@ -328,6 +366,9 @@ namespace GHA.AvatarSuite
             if (_dca.CharacterCreated == null)
                 _dca.CharacterCreated = new UMADataEvent();
             _dca.CharacterCreated.AddListener(OnCharacterCreated);
+            if (_dca.CharacterUpdated == null)
+                _dca.CharacterUpdated = new UMADataEvent();
+            _dca.CharacterUpdated.AddListener(OnCharacterUpdated);
             if (_dca.CharacterStart == null)
                 _dca.CharacterStart = new UMACharacterEvent();
             _dca.CharacterStart.AddListener(OnDcaCharacterStart);
@@ -513,12 +554,37 @@ namespace GHA.AvatarSuite
                 || slotName.IndexOf("Hair", System.StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // UMA raises CharacterCreated once per character and CharacterUpdated after every
+        // build, including that first one (both from the same FireUpdatedEvent call). A
+        // rebuild (wardrobe, DNA, colors) spawns fresh renderers and can rebind the skeleton,
+        // so completion handling must run on every non-cancelled build, exactly once.
         private void OnCharacterCreated(UMAData data)
         {
+            _createdThisBuild = true;
+            OnCharacterBuilt(data, "UMA_CHARACTER_CREATED");
+        }
+
+        private void OnCharacterUpdated(UMAData data)
+        {
+            if (_createdThisBuild)
+                _createdThisBuild = false; // Already handled by OnCharacterCreated for this build.
+            else if (data != null && !data.cancelled)
+                OnCharacterBuilt(data, "UMA_CHARACTER_UPDATED");
+
+            if (!_dnaApplyPending)
+                return;
+            _dnaApplyPending = false;
+            // DNA-only update: skeleton/blendshape pass without regenerating textures or meshes.
+            if (TryApplyDnaToLiveRecipe(_lastRecipe))
+                _dca.ForceUpdate(true, false, false);
+        }
+
+        private void OnCharacterBuilt(UMAData data, string phase)
+        {
             LogAvatarLoadPhase(
-                "UMA_CHARACTER_CREATED",
+                phase,
                 $"rendererCount={(data != null ? data.RendererCount : 0)}");
-            // UMA recreates the Animator on each build, so re-fetch it here.
+            // UMA can recreate the Animator on a build, so re-fetch it here.
             _avatarAnimator = _dca != null ? _dca.GetComponent<Animator>() : null;
             _postureAnimator.Bind(_avatarAnimator);
             CacheHumanoidBones();
