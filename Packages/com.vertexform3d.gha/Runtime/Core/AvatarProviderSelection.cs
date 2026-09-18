@@ -12,6 +12,13 @@ namespace GHA.AvatarFramework
         public const string ModePrefsKey = "GHA_AVATAR_MODE";
         private const string LegacyModePrefsKey = "QVAS_AVATAR_MODE";
 
+        /// <summary>
+        /// Mode used when the player has not saved a choice yet. Hosts that know the
+        /// deployment's default provider set it, so the configuration panel opens on the
+        /// same provider the host builds.
+        /// </summary>
+        public static byte DefaultMode { get; set; }
+
         /// <summary>Applies a saved choice to the current host, independently of preview tabs.</summary>
         public static event Action SavedAvatarApplyRequested;
 

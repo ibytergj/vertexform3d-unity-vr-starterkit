@@ -112,24 +112,25 @@ index 0cac6440..c0a87e5e 100644
          {
              if (XRHandController_Right != null)
 diff --git a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
-index 60db0632..9a859984 100644
+index 60db0632..9e100e9c 100644
 --- a/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
 +++ b/Assets/VertexForm3D/Scripts/AvatarScripts/AvatarSelectionScripts/AvatarSelectionManager.cs
-@@ -126,6 +126,13 @@ namespace VertexFormCore
+@@ -126,6 +126,14 @@ namespace VertexFormCore
              rightHandParent.gameObject.SetActive(false);
          }
  
 +        /// <summary>
-+        /// When true, an external avatar integration owns avatar preview and construction.
-+        /// The stock selection UI remains available, but stock avatar prefabs are not
-+        /// instantiated or reactivated. Leave false for the standard VertexForm behavior.
++        /// When true, an external avatar integration owns the player's avatar construction.
++        /// The stock selection UI and its platform preview remain available, but the stock
++        /// head/body prefabs are not instantiated on the player rig or reactivated there.
++        /// Leave false for the standard VertexForm behavior.
 +        /// </summary>
 +        public static bool SuppressLegacyAvatars;
 +
          public void InitializeAvatarSystem()
          {
              OnTapCustomAvatarSelection();
-@@ -135,7 +142,10 @@ namespace VertexFormCore
+@@ -135,7 +143,10 @@ namespace VertexFormCore
          {
              avatarSelectionNumber = PlayerPrefs.GetInt(MultiplayerVRConstants.AVATAR_SELECTION_NUMBER);
              ActivateAvatarModelAt(avatarSelectionNumber);
@@ -141,18 +142,45 @@ index 60db0632..9a859984 100644
              customAvatarSelectionUI.SetActive(true);
              if (customAvatarSelectionUI.activeInHierarchy)
              {
-@@ -189,6 +199,11 @@ namespace VertexFormCore
+@@ -189,20 +200,35 @@ namespace VertexFormCore
          /// <param name="avatarIndex"></param>
          private void ActivateAvatarModelAt(int avatarIndex)
          {
-+            if (SuppressLegacyAvatars)
++            if (ProjectManager.instance == null || ProjectManager.instance.uiLayoutConfig == null ||
++                ProjectManager.instance.uiLayoutConfig.avatarDatas == null ||
++                avatarIndex < 0 || avatarIndex >= ProjectManager.instance.uiLayoutConfig.avatarDatas.Count)
 +            {
 +                return;
 +            }
 +
              ClearChildren(headParent);
-             ClearChildren(headTransform);
-             ClearChildren(bodyTransform);
+-            ClearChildren(headTransform);
+-            ClearChildren(bodyTransform);
+             ClearChildren(bodyParent);
+             GameObject body = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].body);
+             body.transform.SetParent(bodyParent, false);
+             GameObject head = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].head);
+             head.transform.SetParent(headParent, false);
++            body.transform.localPosition = head.transform.localPosition = Vector3.zero;
+ 
++            if (SuppressLegacyAvatars)
++            {
++                // An external avatar integration owns the player's body; only the
++                // selection-platform preview above is refreshed.
++                return;
++            }
++
++            ClearChildren(headTransform);
++            ClearChildren(bodyTransform);
+             GameObject body1 = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].body);
+             body1.transform.SetParent(bodyTransform, false);
+             GameObject head1 = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].head);
+             head1.transform.SetParent(headTransform, false);
+-            body.transform.localPosition = body1.transform.localPosition = head.transform.localPosition = head1.transform.localPosition = Vector3.zero;
++            body1.transform.localPosition = head1.transform.localPosition = Vector3.zero;
+             customavatarloader.SetAvatar(head1, body1, true);
+         }
+ 
 diff --git a/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs b/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs
 index 2277f9a5..8ca3821e 100644
 --- a/Assets/VertexForm3D/Scripts/Multiplayer/PlayerNetworkSetup.cs

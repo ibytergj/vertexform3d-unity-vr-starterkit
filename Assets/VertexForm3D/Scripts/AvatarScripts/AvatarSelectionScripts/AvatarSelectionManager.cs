@@ -127,9 +127,10 @@ namespace VertexFormCore
         }
 
         /// <summary>
-        /// When true, an external avatar integration owns avatar preview and construction.
-        /// The stock selection UI remains available, but stock avatar prefabs are not
-        /// instantiated or reactivated. Leave false for the standard VertexForm behavior.
+        /// When true, an external avatar integration owns the player's avatar construction.
+        /// The stock selection UI and its platform preview remain available, but the stock
+        /// head/body prefabs are not instantiated on the player rig or reactivated there.
+        /// Leave false for the standard VertexForm behavior.
         /// </summary>
         public static bool SuppressLegacyAvatars;
 
@@ -199,25 +200,35 @@ namespace VertexFormCore
         /// <param name="avatarIndex"></param>
         private void ActivateAvatarModelAt(int avatarIndex)
         {
-            if (SuppressLegacyAvatars)
+            if (ProjectManager.instance == null || ProjectManager.instance.uiLayoutConfig == null ||
+                ProjectManager.instance.uiLayoutConfig.avatarDatas == null ||
+                avatarIndex < 0 || avatarIndex >= ProjectManager.instance.uiLayoutConfig.avatarDatas.Count)
             {
                 return;
             }
 
             ClearChildren(headParent);
-            ClearChildren(headTransform);
-            ClearChildren(bodyTransform);
             ClearChildren(bodyParent);
             GameObject body = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].body);
             body.transform.SetParent(bodyParent, false);
             GameObject head = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].head);
             head.transform.SetParent(headParent, false);
+            body.transform.localPosition = head.transform.localPosition = Vector3.zero;
 
+            if (SuppressLegacyAvatars)
+            {
+                // An external avatar integration owns the player's body; only the
+                // selection-platform preview above is refreshed.
+                return;
+            }
+
+            ClearChildren(headTransform);
+            ClearChildren(bodyTransform);
             GameObject body1 = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].body);
             body1.transform.SetParent(bodyTransform, false);
             GameObject head1 = Instantiate(ProjectManager.instance.uiLayoutConfig.avatarDatas[avatarIndex].head);
             head1.transform.SetParent(headTransform, false);
-            body.transform.localPosition = body1.transform.localPosition = head.transform.localPosition = head1.transform.localPosition = Vector3.zero;
+            body1.transform.localPosition = head1.transform.localPosition = Vector3.zero;
             customavatarloader.SetAvatar(head1, body1, true);
         }
 

@@ -465,7 +465,8 @@ namespace GHA.AvatarFramework.UI
             if (string.IsNullOrEmpty(_selectedProviderId) ||
                 providers.All(provider => provider.ProviderId != _selectedProviderId))
             {
-                byte selectedMode = AvatarProviderSelection.LoadMode(providers[0].Mode);
+                // No saved choice: open on the host's default provider, not the first tab.
+                byte selectedMode = AvatarProviderSelection.LoadMode(AvatarProviderSelection.DefaultMode);
                 IAvatarConfigurationPanelProvider selected =
                     providers.FirstOrDefault(provider => provider.Mode == selectedMode) ?? providers[0];
                 _selectedProviderId = selected.ProviderId;

@@ -26,6 +26,13 @@ namespace GHA.AvatarSuite
         public override int SortOrder => 100;
         public override bool IsAvailable => catalog != null && catalog.enableUmaAvatars;
 
+        private void Awake()
+        {
+            // Same default the UMA hosts use, so the panel opens on the provider that is built.
+            if (catalog != null)
+                GHA.AvatarFramework.AvatarProviderSelection.DefaultMode = (byte)catalog.EffectiveDefaultSystem;
+        }
+
         public override GameObject CreatePanel(AvatarConfigurationPanelContext context)
         {
             var root = new GameObject("UMA Avatar Configuration", typeof(RectTransform));

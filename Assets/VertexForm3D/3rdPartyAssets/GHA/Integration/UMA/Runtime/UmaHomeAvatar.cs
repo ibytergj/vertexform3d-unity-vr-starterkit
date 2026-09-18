@@ -55,6 +55,10 @@ namespace GHA.AvatarSuite
             // Switch the legacy avatar system off at the source (no per-frame fighting):
             // AvatarSelectionManager skips legacy instantiation/reactivation entirely.
             VertexFormCore.AvatarSelectionManager.SuppressLegacyAvatars = true;
+            // The Studio's default tab must match the provider this host builds when
+            // nothing has been saved yet (the catalog's default system).
+            AvatarProviderSelection.DefaultMode =
+                (byte)(catalog != null ? catalog.EffectiveDefaultSystem : AvatarSystemMode.Uma);
 
             if (legacyAvatarRoot != null)
                 legacyAvatarRoot.SetActive(false);

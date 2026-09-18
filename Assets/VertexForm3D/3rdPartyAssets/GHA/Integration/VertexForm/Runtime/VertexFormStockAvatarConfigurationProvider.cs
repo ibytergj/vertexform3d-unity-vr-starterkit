@@ -224,13 +224,12 @@ namespace VertexFormCore.GHAIntegration
             Transform previewRoot = manager != null && manager.headParent != null
                 ? manager.headParent.parent
                 : null;
+            // With SuppressLegacyAvatars set, the manager refreshes only its platform preview;
+            // the player's body changes on Save through the host, never while browsing.
             if (selected && manager != null && previewRoot != null &&
                 previewRoot.GetComponentsInChildren<Renderer>(true).Length == 0)
             {
-                bool suppressLegacyAvatars = AvatarSelectionManager.SuppressLegacyAvatars;
-                AvatarSelectionManager.SuppressLegacyAvatars = false;
                 manager.InitializeAvatarSystem();
-                AvatarSelectionManager.SuppressLegacyAvatars = suppressLegacyAvatars;
             }
             if (previewRoot != null && previewRoot.gameObject.activeSelf != selected)
                 previewRoot.gameObject.SetActive(selected);
@@ -244,19 +243,10 @@ namespace VertexFormCore.GHAIntegration
             if (manager != null)
             {
                 ResolveProjectManager();
-                bool suppressLegacyAvatars = AvatarSelectionManager.SuppressLegacyAvatars;
-                AvatarSelectionManager.SuppressLegacyAvatars = false;
-                try
-                {
-                    if (direction < 0)
-                        manager.PreviousAvatar();
-                    else
-                        manager.NextAvatar();
-                }
-                finally
-                {
-                    AvatarSelectionManager.SuppressLegacyAvatars = suppressLegacyAvatars;
-                }
+                if (direction < 0)
+                    manager.PreviousAvatar();
+                else
+                    manager.NextAvatar();
                 if (manager.headParent != null)
                     StartCoroutine(FramePreviewAfterLayout(manager.headParent.parent));
                 return;
