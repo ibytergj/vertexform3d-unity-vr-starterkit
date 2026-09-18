@@ -1,12 +1,18 @@
-# Avatar Suite Architecture Boundaries
+# GHA (Generic Humanoid Avatars) Architecture
 
-Status: July 12, 2026
+Status: September 18, 2026. First written July 12, 2026 as the QuantumVertex "Avatar Suite"
+architecture; renamed and brought up to date for the VertexForm3D `Generic-Humanoid-Avatars`
+branch. The design sections describe the accepted direction. [Current implementation](#current-implementation-september-18-2026)
+describes what exists. [Roadmap](#roadmap) lists every design commitment that is not delivered.
+[Known defects](#known-defects) lists open bugs. The [Status history](#status-history) records
+what changed and when.
 
-Reference review: see `REFERENCE-REVIEW.md` for the consolidated platform documentation,
-player-prefab documentation, retired RPM rig audit, implementation decisions, and revised work
-order.
+Companion documents: `REFERENCE-REVIEW.md` (why the design is what it is),
+`PACKAGE-BOUNDARIES.md` (ownership rules and the reversible installer), the UMA package's
+`Documentation~/SETUP.md` (UMA setup and body-type authoring), and the repository's
+`GHA-MIGRATION-RUNBOOK.md` (controlling status and verification ledger).
 
-## Accepted Product Direction
+## Accepted product direction
 
 The target product boundary is:
 
@@ -14,22 +20,24 @@ The target product boundary is:
 VertexForm3D Core
     Minimal, inert, provider-neutral extension hooks
 
-Avatar Model Integration Framework
-    Shared Unity Humanoid embodiment and VertexForm integration
+Avatar Model Integration Framework  (com.vertexform3d.gha)
+    Shared Unity Humanoid embodiment, presentation, calibration, posture, Avatar Studio shell,
+    and VertexForm host adapters
 
 Avatar provider packages
-    UMA 3 provider (initial production provider)
-    Local Humanoid prefab/FBX provider (framework proof provider)
-    Remote Vertex-compatible GLB provider (future)
+    UMA 3 provider (com.vertexform3d.gha.uma; initial production provider)
+    Stock/Classic VertexForm avatars (host-supplied provider inside the Avatar Studio shell)
+    Local Humanoid prefab/FBX provider (framework proof provider; roadmap)
+    Remote Vertex-compatible GLB provider (roadmap)
 ```
 
-This framework integrates humanoid 3D character models into VertexForm3D. It is not an abstraction
+The framework integrates humanoid 3D character models into VertexForm3D. It is not an abstraction
 over third-party avatar platforms, account systems, cloud services, or vendor SDKs. Character
 Creator, MetaHuman, Blender, or another source matters only to the provider that turns its output
 into a compatible Unity Humanoid instance.
 
-Non-humanoid avatars are explicitly outside the current framework scope. They may be supported by
-a future parallel integration system without weakening the Humanoid contract defined here.
+Non-humanoid avatars are outside the framework scope. They may be supported by a future parallel
+integration system without weakening the Humanoid contract defined here.
 
 ### Core-change policy
 
@@ -40,11 +48,15 @@ Changes proposed to VertexForm3D Core must be:
 - Inert when the integration framework is absent or no provider is selected.
 - Non-breaking for the existing stock avatar path.
 - Kept separate from UMA implementation details and provider commits.
-- Suitable for upstream submission; the add-on may use the local hook while acceptance is pending.
+- Suitable for upstream submission; the integration may use the local hook while acceptance is
+  pending.
 
-Current examples are `PlayerNetworkSetup.AvatarConstructionOverride` and the generic
-`AvatarExtensionSync` transport. These should be judged as platform extension points, not UMA
-features.
+The current core seams are `PlayerNetworkSetup.AvatarConstructionOverride` and `IsSitting`,
+`AvatarSelectionManager.SuppressLegacyAvatars`, `SitSpot` occupancy authority plus the optional
+`SeatedPelvisTarget`, and the generic `SceneLoader` EventSystem sweep. They are applied by the host
+installer as one reviewable patch and are the intended upstream contribution (see
+[Packaging and distribution](#packaging-and-distribution)). They must be judged as platform
+extension points, not UMA features.
 
 ### Provider input forms
 
@@ -54,8 +66,8 @@ The framework supports both without complicating embodiment code:
 - A provider that returns an already imported Humanoid prefab/model, such as a local FBX-based
   character.
 
-Both paths converge on the same ready-instance contract. The framework does not care how the
-provider obtained the instance.
+Both paths converge on the same ready-instance contract (`IHumanoidAvatarInstance`). The framework
+does not care how the provider obtained the instance.
 
 ### Shared versus provider responsibilities
 
@@ -69,144 +81,101 @@ provider obtained the instance.
 | Hair/clothing | No construction ownership beyond generic bounds/visibility | Construction, attachment, simulation, renderer discovery |
 | Materials | Cross-platform validation requirements | Shader/material creation, conversion, and repair |
 | Appearance data | Opaque versioned transport | Encode, validate, decode, and build provider payload |
+| Avatar configuration UI | Provider-neutral Avatar Studio shell, tabs, preview area, theme, save action | Category rail entries and controls for its own appearance model |
 
-The framework should supply a default retargetable Animator Controller and baseline locomotion and
-posture clips. Providers may override clips or the controller when necessary. Providers should
-declare optional capabilities such as fingers, face, head-only visibility, runtime rebuilding,
-and material preparation so unsupported features degrade deliberately.
+The framework supplies a default retargetable Animator Controller (`GHA_Locomotion_v2`) and
+baseline locomotion and posture clips. Providers may override clips or the controller when
+necessary. Providers should declare optional capabilities such as fingers, face, head-only
+visibility, runtime rebuilding, and material preparation so unsupported features degrade
+deliberately.
 
 ### Physical fit and avatar scaling policy
 
 Player measurement, avatar appearance, runtime pose, and scene grounding are separate concerns.
 Conflating them caused scene-dependent scale and placement changes during the initial Home/Ocean
-VR work. The framework therefore needs an explicit physical-fit mode saved with the selected
-avatar:
+VR work. The accepted policy is an explicit physical-fit mode saved with the selected avatar
+(`ProviderProportions`, `UniformScale`, `AuthoredScale`), provider metadata sufficient to choose a
+mode safely, and a customizer that explains the trade-off instead of choosing silently.
 
-| Mode | Intended providers | Behavior |
-|---|---|---|
-| `ProviderProportions` | UMA or another parametric provider | The provider adjusts stature-related proportions (for example legs and torso) toward the player's physical measurements. A small, bounded uniform residual scale may be used after rebuilding. |
-| `UniformScale` | Conventional imported Humanoid prefabs, FBX, GLB, or providers without proportion controls | The framework uniformly scales the complete ready avatar from its authored eye-to-sole measurement. This preserves skeleton, animation, IK, renderer, attachment, and collider relationships, but also changes width, head size, and every other dimension. It must therefore be an explicit player/author choice, not an invisible scene correction. |
-| `AuthoredScale` | Arbitrary imported avatars, unusual rigs, or any provider that cannot promise safe fitting | Preserve the provider's authored scale. Use head/root following plus arm and leg IK, comparable to the retired RPM behavior, to embody differently sized players within the rig's reach limits. This is the required conservative fallback. |
+**That policy is not implemented.** See [Roadmap R1](#r1-physical-fit-policy) for the full design
+and the current behavior, which is a single uniform auto-scale applied to every provider.
 
-The three modes are ordered by capability, not quality. `ProviderProportions` is the preferred
-UMA experience because the player can tune height, leg length, torso length, head size, and other
-dimensions without indiscriminately widening the entire character. It is not available for an
-arbitrary model merely because that model has a Humanoid Animator. `UniformScale` is the generic
-opt-in compromise. `AuthoredScale` is the predictable zero-assumption baseline and should be the
-default for an avatar imported from an unknown source.
+What is implemented and must be preserved regardless of R1:
 
-Each provider or imported-avatar profile should expose enough provider-neutral metadata for the
-framework to make a safe decision:
-
-- Authored eye-to-sole height and the transforms used to measure it.
-- Recommended minimum and maximum uniform scale, if uniform scaling is supported.
-- Whether provider-driven proportion fitting is supported.
-- Available head, hand, and foot targets and whether arm/leg IK is supported.
-- Any provider-specific rebuild notification required before measurements are valid.
-
-Missing or invalid metadata must resolve to `AuthoredScale`; the framework must not guess that an
-unknown rig is safe to resize or reshape.
-
-Physical player measurements belong to a local calibration/profile service and are independent
-of any scene. Provider-specific stature and proportion choices belong in that provider's saved
-avatar payload. The resolved physical-fit mode and any resulting locked uniform scale belong to
-the selected avatar's embodiment profile and, when necessary, are synchronized so remote clients
-reconstruct the same appearance.
-
-The customizer/calibration experience should explain the tradeoff rather than silently choosing:
-
-- Show the player's stable measured standing eye height or estimated physical height.
-- Show the avatar's authored/current height when the provider can measure it.
-- For UMA, offer a provider-driven "match my height" starting point plus separate height, leg,
-  torso, head, and other appearance controls.
-- For a generic compatible Humanoid, offer "keep original proportions" and an explicit
-  "match my height using uniform scale" option.
-- For an unknown or unsupported rig, keep the authored size and explain that pose/IK adapts the
-  avatar without changing its proportions.
-
-Once resolved, avatar size must remain invariant across Home, Ocean Villa, and every other host.
-Scene entry may wait for valid tracking, establish the scene's rendered floor, place the avatar,
-and solve head/hands/feet. It must not reinterpret tracking-origin offsets as player height,
-recalculate avatar size from a CharacterController/world-space head delta, or mutate provider
-appearance data. Tracking loss and scene changes may reset placement readiness, never physical
-fit. This preserves the accepted separation:
+- Physical player measurements belong to a local calibration service independent of any scene
+  (`VrCalibrationSession`).
+- Avatar size, once resolved, is invariant across Home, Ocean Villa, and every other host. Scene
+  entry may wait for valid tracking, establish the rendered floor, place the avatar, and solve
+  head/hands/feet. It must not reinterpret tracking-origin offsets as player height, recalculate
+  avatar size from a CharacterController/world-space head delta, or mutate provider appearance
+  data. Tracking loss and scene changes may reset placement readiness, never physical fit.
 
 ```text
 local physical profile -> selected fit policy -> locked avatar appearance/scale
 scene rig + rendered floor -> root placement and IK only
 ```
 
-### Future remote Humanoid GLB provider
+## Current implementation (September 18, 2026)
 
-Remote loading is a future provider, not current UMA V2 scope. A standard GLB cannot carry Unity
-MonoBehaviours, Animator Controllers, `RigBuilder`, or Unity constraint components. A future
-Vertex-compatible avatar authoring/export path should instead produce:
+### Where the code lives
 
-- A validated Humanoid skeleton, meshes, skins, materials, and optional animations.
-- Vertex-specific metadata in GLTF extras or a companion versioned manifest.
-- A mapping profile sufficient for the provider to create the Unity Humanoid integration.
-
-`RemoteHumanoidGlbProvider` would download that package and return the same ready-instance contract
-as UMA or the local prefab provider. The framework would then attach its normal embodiment rig.
-Initially, remote assets should come from an experience-controlled catalog/allowlist for security,
-deterministic multiplayer, caching, and CORS reliability. The design must not block this provider,
-but no remote downloader is required for the initial extraction.
-
-## Purpose
-
-The current add-on proves that UMA avatars can coexist with the stock VertexForm3D avatar
-system and can be embodied by the existing desktop and XR rigs. During that work, several
-generally useful avatar features were implemented inside classes named `Uma*`, especially
-`UmaAvatarPuppet`.
-
-This document separates the implementation into three concerns:
-
-1. UMA-specific avatar construction and customization.
-2. Reusable humanoid embodiment behavior.
-3. VertexForm3D and Fusion integration that is generic across avatar providers, but is not
-   independent of this application framework.
-
-The desired dependency direction is:
-
-```text
-VertexForm/Fusion integration ---> generic humanoid embodiment <--- UMA adapter
-              |                              ^                      (or another provider)
-              +------ opaque avatar data ----+
-```
-
-Generic embodiment code must not reference UMA types. An avatar-provider adapter may reference
-the generic embodiment API, Unity Humanoid APIs, and its own model-construction dependencies.
-
-## Classification Summary
-
-| Area | Classification | Current location | Long-term owner |
+| Layer | Location | Assembly | Notes |
 |---|---|---|---|
-| Race, wardrobe, DNA, shared colors | UMA-specific | `UmaAvatarCatalog`, `UmaAvatarCustomizer`, `UmaAvatarPuppet` | UMA adapter |
-| DCA creation and rebuild lifecycle | UMA-specific | `UmaAvatarPuppet` | UMA adapter |
-| UMA head-slot renderer split | UMA-specific implementation of a generic visibility capability | `UmaAvatarPuppet` | UMA adapter |
-| Recipe encoding and local persistence | Current payload is UMA-specific; transport pattern is generic | `UmaRecipeCodec`, `UmaRecipeStore` | UMA adapter over generic transport |
-| Humanoid bone discovery | Generic | `UmaAvatarPuppet` | Generic embodiment |
-| Head and hand target following | Generic | `UmaAvatarPuppet` | Generic embodiment |
-| Two-bone arm IK | Generic Unity humanoid rigging | `UmaAvatarPuppet` | Generic embodiment |
-| Wrist offsets for hands/controllers | Generic policy with avatar-specific profiles | `UmaAvatarPuppet` | Generic embodiment + provider profile |
-| Player measurement and physical-fit policy | Generic contract and persistence policy | `VrHeightCalibration`, `HumanoidVrAlignment`, `UmaAvatarPuppet` | Generic embodiment/profile service |
-| Proportion-driven stature fitting | Provider capability | UMA DNA/customizer | UMA adapter (or another parametric provider) |
-| Uniform scale application | Generic, only when selected and supported | `HumanoidVrAlignment` | Generic embodiment |
-| Authored-scale fallback | Generic policy using provider-authored size plus IK | Partial in current embodiment/RPM reference | Generic embodiment |
-| HMD sleep/focus tracking recovery | Generic XR lifecycle | `HumanoidTrackingLifecycle`, with provider rebind execution in `UmaAvatarPuppet` | Generic embodiment |
-| VR idle-animation suppression | Generic | `UmaAvatarPuppet` | Generic embodiment |
-| Standing/sitting Animator contract | Generic Unity Humanoid behavior | `HumanoidPostureAnimator`, applied by `UmaAvatarPuppet` | Generic embodiment |
-| First-person head/body visibility policy | Generic policy | `HumanoidAvatarPresentationController`, with host policy inputs | Generic embodiment/integration |
-| Renderer-level head hiding | Provider-specific capability | `UmaAvatarPuppet` | Avatar-provider adapter |
-| Local camera culling-mask setup | Generic Unity camera behavior | `HumanoidAvatarPresentationController`, `AvatarCameraVisibilityController` | Generic embodiment/integration |
-| Local versus remote authority | VertexForm/Fusion-specific | `UmaAvatarBridge`, `UmaAvatarPuppet` | VertexForm integration |
-| Opaque mode/revision/data replication | Generic avatar extension transport | `AvatarExtensionSync` | VertexForm core/integration |
-| Standing/sitting posture replication | Generic avatar extension transport | `AvatarExtensionSync.Posture` / `PostureRevision`, published by `UmaAvatarBridge` | VertexForm core/integration |
-| Legacy avatar suppression/switching | VertexForm-specific | `UmaAvatarBridge`, `UmaHomeAvatar` | VertexForm integration |
-| Remote proximity hiding | Generic concept; current implementation knows stock and UMA layouts | `RemoteAvatarProximityHider` | Generic integration with renderer providers |
-| Material/shader repair | UMA-content-specific for current assets | UMA material assets, pending audit | UMA adapter/content package |
+| VertexForm3D Core seams | Five core scripts under `Assets/VertexForm3D/Scripts` | `Assembly-CSharp` | Applied and reverted by the host installer through `Installer/Editor/Patches/VertexFormGhaHost.patch`. |
+| Framework | `Packages/com.vertexform3d.gha/Runtime` | `VertexForm.GHA.Runtime` | No UMA, Fusion, or VertexForm references; the asmdef enforces this. |
+| UMA adapter, provider-neutral part | `Packages/com.vertexform3d.gha.uma/Runtime` | `VertexForm.GHA.UMA.Runtime` | Catalog, recipe codec/store, customizer row. References `UMA_Core`; compiled only under `VERTEXFORM_GHA_UMA`. |
+| Host-coupled integration staging | `Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/VertexForm` and `.../Integration/UMA` | `Assembly-CSharp` | Classes that still reference VertexForm implementation types directly. See `Integration/README.md` for the exit criteria. |
+| Installer | `Assets/VertexForm3D/3rdPartyAssets/GHA/Installer/Editor` | `Assembly-CSharp-Editor` | Two reversible layers; see `PACKAGE-BOUNDARIES.md`. |
+| Generated/authored project assets | `Assets/VertexForm3D/3rdPartyAssets/GHA/Generated/GHAAvatarPanel.prefab`, `Assets/VertexForm3D/Resources/GHA` | — | Avatar Studio panel prefab and category/swatch icons. |
+| UMA vendor content | `Assets/UMA`, `Assets/SourceShaders` | UMA's own asmdefs | Installed separately; never committed. Pinned to upstream master `c9204fe4` (= release v3.05). |
 
-## UMA-Specific Work
+The two package folders are scheduled to move under `Assets/VertexForm3D/3rdPartyAssets/GHA`;
+see [Packaging and distribution](#packaging-and-distribution). Their asmdefs and boundaries do not
+change.
+
+### Framework classes (`com.vertexform3d.gha`)
+
+| Responsibility | Class | Notes |
+|---|---|---|
+| Provider contracts | `IHumanoidAvatarInstance`, `AvatarVisibility`, `HumanoidPosture`, `IHumanoidRigInput`, `HumanoidTrackingLifecycleUpdate` | `HumanoidAvatarContracts.cs`. The instance contract exposes `Root`, `Animator`, `IsReady`, `HumanoidRebuilt`, `SetFirstPersonVisibility(AvatarVisibility, int cullLayer)` and `TryGetRendererBounds(out Bounds)`. |
+| Provider selection persistence | `AvatarProviderSelection` | Persists the selected mode byte locally. No registry maps the byte to an adapter yet (Roadmap R3). |
+| Humanoid bone binding and arm IK | `HumanoidArmRig` | Unity Humanoid bone lookup, runtime Animation Rigging `RigBuilder`/`TwoBoneIKConstraint`, target proxies, wrist-axis offsets. VR-only since September 5; leaving VR releases the constraints to the Animator. |
+| Body alignment and height calibration | `HumanoidVrAlignment`, `VrHeightCalibration`, `VrCalibrationSession` | Grounded root placement, yaw, eye-point correction; one-time uniform scale from the session's standing eye height; the session keeps the median accepted standing eye height and persists it. Thresholds, hold time and scale clamps are parameters supplied by the host adapter, not framework constants. |
+| Seated pelvis alignment | `HumanoidSeatedPelvisAlignment` | Visual-root correction so the Hips bone lands on `SeatedPelvisTarget`. |
+| Locomotion and posture animation | `HumanoidLocomotionDriver`, `HumanoidPostureAnimator` | Root-motion measurement, locomotion parameters, tracked-VR animator suppression; int `Posture` parameter contract. |
+| Tracking lifecycle | `HumanoidTrackingLifecycle`, `XrRigStartupStabilizer` | HMD loss/regain transitions and the delayed focus/resume rebind queue; one-shot OpenXR Floor-tracking startup gate that suspends XRI body transformation until a stable pose is accepted and re-arms only on a tracking-origin change. |
+| Presentation | `HumanoidAvatarPresentationController`, `AvatarCameraVisibilityController` | Semantic first-person visibility decision and local-camera culling for Home and networked hosts. |
+| Avatar Studio shell | `AvatarConfigurationPanel`, `IAvatarConfigurationPanelProvider`, `AvatarConfigurationPanelProviderBehaviour`, `AvatarConfigurationPanelContext`, `AvatarConfigurationProviderRegistry`, `AvatarConfigurationTheme`, `AvatarPreviewFraming` | Provider tabs, category rail, preview area, save action, shared theme, and preview framing rules. Providers register at runtime; the shell is embedded under the existing Change Avatar station (see `PACKAGE-BOUNDARIES.md`). |
+| Diagnostics | `AvatarLoadTimingLog` | `[GHA LOAD TIMING]` console entries used by the performance baseline. |
+
+### UMA adapter classes
+
+| Responsibility | Class | Location |
+|---|---|---|
+| Catalog: append-only races, wardrobe, body types, color channels, defaults | `UmaAvatarCatalog` | package |
+| Recipe wire payload and PlayerPrefs persistence | `UmaRecipeCodec`, `UmaRecipeStore` | package |
+| Customizer row control | `UmaCustomizerRow` | package |
+| DCA construction, rebuild lifecycle, head renderer split, seated render suppression | `UmaAvatarPuppet` (implements `IHumanoidAvatarInstance`) | Integration staging |
+| Fusion host: authority, provider build/teardown, payload publish, posture/seat publish | `UmaAvatarBridge` | Integration staging |
+| Home host: persisted provider, Home rig targets, preview | `UmaHomeAvatar` | Integration staging |
+| Avatar Studio provider: Body, Face, Colors, Outfits | `UmaAvatarConfigurationProvider`, `UmaAvatarCustomizer` | Integration staging |
+| Remote proximity hiding | `RemoteAvatarProximityHider` | Integration staging |
+| Load profiling | `AvatarLoadProfilerCapture`, `AvatarLoadProfileReportGenerator` | Integration staging |
+
+`UmaAvatarPuppet`, `UmaAvatarBridge`, `UmaHomeAvatar`, the two Avatar Studio classes and the
+proximity hider still reference `PlayerNetworkSetup`, `AvatarInputConverter` or other VertexForm
+implementation types directly. That is why they compile in `Assembly-CSharp` and cannot yet live in
+the package (Roadmap R5).
+
+### VertexForm host integration classes
+
+| Class | Role |
+|---|---|
+| `AvatarExtensionSync` | Fusion `NetworkBehaviour` with `Mode`, `Revision`, `Length`, `Data`, `Posture`, `PostureRevision`, `SeatId`. Provider-neutral. |
+| `VertexFormHumanoidRigInput` | `IHumanoidRigInput` adapter over `AvatarInputConverter`, `PlayerNetworkSetup`, platform presentation and XR tracking. Requires the active OpenXR session to be Focused before treating the headset as worn. |
+| `VertexFormStockAvatarConfigurationProvider` | Classic avatars as an Avatar Studio provider: Previous/Next selection, preview rebuild, save. Repairs stale `ProjectManager`/`AvatarSelectionManager` references after scene load. |
+
+## UMA-specific work
 
 ### Avatar construction
 
@@ -221,133 +190,107 @@ The following behavior exists specifically because UMA builds avatars dynamicall
 - Create missing `UMADataEvent` instances before adding `CharacterBegun` and
   `CharacterCreated` listeners.
 - Reacquire the Animator and skeleton after each UMA rebuild.
+- Stage wardrobe/DNA/colors with UMA building disabled and enable one build when the race
+  changes; UMA's internal race-state cache is disabled on GHA-owned avatars because the GHA recipe
+  owns their state (September 7).
 
-These responsibilities belong in an UMA avatar-provider adapter and cannot be reused by a
-prefab avatar, Ready Player Me avatar, Meta Avatar, or another runtime generator as written.
+These responsibilities belong in the UMA adapter and cannot be reused by a prefab avatar or another
+runtime generator as written.
 
-### UMA recipe and customization
+### Recipe, customization and body types
 
 `UmaAvatarCatalog`, `UmaRecipeCodec`, `UmaRecipeStore`, `UmaAvatarCustomizer`, and
-`UmaCustomizerRow` currently define UMA's authoring and player-choice model:
+`UmaCustomizerRow` define UMA's authoring and player-choice model:
 
-- Append-only race, wardrobe, DNA, and color identifiers.
-- UMA wardrobe-slot exclusivity.
-- UMA DNA slider names and values.
-- UMA shared-color palette selection.
+- Append-only race, wardrobe, DNA, and color identifiers. The index is the saved/network ID; all
+  clients must ship the identical catalog.
+- Body types (`bodyTypes`): a label, an explicit starting outfit and the race behind it. Human
+  Male (race 0) and Human Female (race 1) are the initial types. Outfit choices are filtered by
+  authored UMA race compatibility and wardrobe slots; missing compatibility metadata is never
+  treated as permission to equip. The customizer remembers each type's outfit choices, including
+  None, within one session; Save Avatar persists only the active type's recipe.
+- UMA wardrobe-slot exclusivity, DNA slider names and values, shared-color palette selection.
 - Preview DCA construction and rebuilds.
-- The current versioned wire payload and PlayerPrefs representation.
+- The versioned wire payload and PlayerPrefs representation.
 
-The idea of an opaque, versioned avatar payload is generic. The payload schema itself is UMA
-specific and should remain behind the UMA adapter.
+The idea of an opaque, versioned avatar payload is generic. The payload schema is UMA-specific and
+stays behind the adapter.
 
 ### Head renderer separation
 
 The user-facing requirement is generic: hide the local avatar's head from the HMD camera while
 leaving the body visible and leaving mirrors and remote cameras unaffected.
 
-The current implementation is UMA-specific:
+The UMA implementation inspects `SlotData` during `CharacterBegun`, routes slots carrying UMA's
+`Head` tag to a runtime `UMARendererAsset`, name-matches auxiliary slots such as eyes, mouth and
+hair when tags live on overlays, and locates the resulting `SkinnedMeshRenderer` through
+`UMAData.GetRendererAsset`. Another provider needs its own implementation. The generic layer
+requests `HeadOnly`, `WholeBody`, or `Visible`; it does not know how a provider achieves it.
 
-- Inspect `SlotData` during `CharacterBegun`.
-- Route slots carrying UMA's `Head` tag to a runtime `UMARendererAsset`.
-- Name-match auxiliary UMA slots such as eyes, mouth, and hair when tags live on overlays.
-- Locate the resulting `SkinnedMeshRenderer` through `UMAData.GetRendererAsset`.
+### UMA content and materials
 
-Another provider needs its own implementation, such as disabling known head renderers, applying
-a local-camera render feature, hiding head blend shapes, or using provider-supplied first-person
-visibility controls. The generic layer should request `HeadOnly`, `WholeBody`, or `Visible`; it
-should not know how a provider achieves that result.
+Material validation is UMA content work. The current baseline is upstream master `c9204fe4`
+(release v3.05) with 12 shader graphs replaced byte-for-byte from upstream develop `f4edf41ba`
+because their master versions fail Unity's JSON import. `UMA_SG_Diffuse.shadergraph` is malformed
+on both branches and remains unrepaired. A cross-platform material audit (Editor/URP, Quest,
+WebGL, WebGPU/WebXR) has not been done (Roadmap R8).
 
-### UMA material pass
-
-Material validation is an UMA content responsibility for this package. It should audit the UMA
-materials by race and wardrobe category on Editor/URP, Quest, WebGL, and WebGPU/WebXR. Existing
-good materials should remain untouched. Fixes should be limited to failing shader assignments,
-surface settings, textures, and import settings.
-
-This material pass is not part of generic XR embodiment, although a generic avatar-provider
-validation checklist can require each provider to declare its supported render pipelines and
-platforms.
-
-## Reusable Humanoid Embodiment Work
-
-The following behavior is not inherently UMA-specific and should be reusable with any Unity
-Humanoid avatar that can expose an Animator, a root transform, and renderer visibility controls.
+## Reusable Humanoid embodiment work
 
 ### Rig inputs
 
-The embodiment layer consumes these semantic targets:
-
-- Tracked head/eye pose.
-- Body or locomotion anchor.
-- Left and right hand poses.
-- Floor height.
-- Local/remote ownership and presentation style.
-- Whether controller tracking or optical hand tracking is active.
-
-Today these values are read directly from `AvatarInputConverter` and `PlayerNetworkSetup`.
-Those are VertexForm integration details. The generic component should receive a small rig-input
-interface or serialized target set instead.
+The embodiment layer consumes semantic targets through `IHumanoidRigInput`: tracked head/eye
+pose, body or locomotion anchor, left and right hand poses, floor height, local/remote authority
+and presentation style, and whether controller tracking or optical hand tracking is active.
+`VertexFormHumanoidRigInput` is the host adapter. `UmaAvatarPuppet` still reads some values from
+`AvatarInputConverter` and `PlayerNetworkSetup` directly (Roadmap R5).
 
 ### Humanoid binding and IK
 
-The following implementation uses standard Unity humanoid and Animation Rigging APIs:
-
-- Resolve `Head`, `LeftUpperArm`, `LeftLowerArm`, `LeftHand`, and right-side equivalents through
-  `Animator.GetBoneTransform(HumanBodyBones.*)`.
-- Build `RigBuilder`, `Rig`, and `TwoBoneIKConstraint` components at runtime.
-- Drive IK target proxies from tracked hand targets.
-- Apply configurable hand/controller wrist rotation profiles.
-- Retry binding when the provider recreates its Animator.
-
-The generic layer should own the constraints and target updates. The provider adapter should
-notify it when a new humanoid Animator is ready.
+`HumanoidArmRig` resolves `Head`, `LeftUpperArm`, `LeftLowerArm`, `LeftHand` and right-side
+equivalents through `Animator.GetBoneTransform`, builds `RigBuilder`, `Rig` and
+`TwoBoneIKConstraint` at runtime, drives IK target proxies from tracked hand targets, applies
+configurable wrist rotation profiles, and rebinds when the provider recreates its Animator. Arm IK
+is created only in VR; desktop players use Animator-driven arms.
 
 ### Body alignment and height calibration
 
-These are general embodiment rules:
+General embodiment rules, implemented in `HumanoidVrAlignment` and the calibration classes:
 
 - Follow the player's body anchor in horizontal position and yaw.
 - Align the avatar eye point with the tracked HMD eye point.
 - Represent the head-bone-to-eye displacement as a configurable avatar profile.
 - Start seated players at the provider's authored/default scale.
-- Accept a plausible standing eye height only after a stability hold.
-- Calculate avatar scale once from standing eye height and lock it.
+- Accept a plausible standing eye height only after a stability hold; the session keeps the
+  median of accepted samples and persists it.
+- Calculate avatar scale once and lock it.
 - Never rescale the avatar when the player sits, crouches, or puts down the headset.
 - Reset calibration only when intentionally changing/rebuilding the avatar or explicitly asking
   to recalibrate.
 
-The current `1.35 m` standing threshold, one-second hold, scale clamp, and eye offsets are tuning
-defaults, not UMA rules. They should live in a generic calibration profile and may eventually be
-persisted per user.
+Minimum standing eye height, hold duration, drift tolerance and scale clamps are host-supplied
+parameters. The July values quoted in earlier revisions (1.35 m, one second) are not framework
+constants; the alignment code enforces a minimum 2.5 s hold.
 
 ### Tracking lifecycle and animation ownership
 
-The following work applies to any XR avatar:
-
-- Detect HMD tracking loss and regain.
+- Detect HMD tracking loss and regain (`HumanoidTrackingLifecycle`).
 - Gate local XR-rig startup until the runtime has accepted Floor tracking and reports a present,
-  position-tracked headset with a stable, physically plausible floor-relative pose. While this
-  one-shot gate is pending, suspend XRI body transformation/gravity so a transitional camera pose
-  cannot create an invalid CharacterController or move the player root. Re-arm only when the XR
-  runtime reports a tracking-origin change; do not continuously rewrite a settled rig.
+  position-tracked headset with a stable, plausible floor-relative pose; suspend XRI body
+  transformation/gravity while pending; re-arm only on a tracking-origin change
+  (`XrRigStartupStabilizer`).
 - Rebind targets after application focus or headset resume.
 - Preserve a completed height calibration across sleep/wake.
-- Suppress idle/locomotion animation while live tracking owns the upper-body pose.
-- Restore normal animation when tracking is genuinely unavailable.
+- Suppress idle/locomotion animation while live tracking owns the upper-body pose; restore it when
+  tracking is genuinely unavailable (`HumanoidLocomotionDriver`).
 - Emit change-based alignment diagnostics rather than frame-by-frame console spam.
 
-For a local OpenXR host, `isTracked` and `userPresence` are not sufficient on every runtime:
+For a local OpenXR host, `isTracked` and `userPresence` are not sufficient on every runtime;
 Horizon Link may leave both true after the headset is removed. The host adapter therefore also
-requires the active OpenXR session to remain in the Focused state. When tracking ownership is
-lost, provider constraints must be disabled and the current Animator pose evaluated immediately;
-simply stopping future tracked-bone writes can leave the final tracked head rotation latched.
-
-Seated animation belongs in this layer as a posture system. Sitting must drive pose/state, hips,
-spine, and legs while preserving the locked body scale and tracked head/hands.
+requires the active OpenXR session to remain Focused. When tracking ownership is lost, provider
+constraints must be disabled and the current Animator pose evaluated immediately.
 
 ### Visibility policy
-
-The generic visibility states should be semantic:
 
 ```text
 Visible     - third person, mirrors, and remote players
@@ -355,231 +298,366 @@ HeadOnly    - local first-person VR; body and hands remain visible
 WholeBody   - local desktop first person or temporary provider fallback
 ```
 
-The embodiment/integration layer chooses the state. The avatar-provider adapter performs the
-renderer-specific operation. Local camera culling and mirror-camera inclusion are generic Unity
-integration concerns.
+`HumanoidAvatarPresentationController` chooses the state; the provider performs the
+renderer-specific operation; `AvatarCameraVisibilityController` owns local camera culling and
+shared XR camera diagnostics.
 
-## VertexForm3D/Fusion Integration Work
-
-This layer is reusable across avatar providers in Generic Humanoid Avatars, but it is coupled to
-VertexForm3D and Fusion.
+## VertexForm3D/Fusion integration work
 
 ### Generic extension replication
 
-`AvatarExtensionSync` is already provider-neutral:
-
-- `Mode` selects the avatar provider.
-- `Revision` signals a rebuild.
-- `Length` and `Data` carry an opaque versioned payload.
-- `Posture` carries provider-neutral standing/sitting state.
-- `PostureRevision` identifies posture transitions for proxies and late joiners.
-- `SeatId` identifies the occupied networked `SitSpot`; the player `NetworkTransform` carries the
-  live anchor position and facing.
-- Fusion authority determines who may publish avatar state.
-
-It should remain free of UMA references. A provider registry can eventually map each mode byte to
-an adapter and payload codec.
-
-The opaque payload describes avatar construction/customization, not continuous HMD and hand poses.
-Those poses should continue through the existing multiplayer VR synchronization path.
+`AvatarExtensionSync` is provider-neutral: `Mode` selects the provider, `Revision` signals a
+rebuild, `Length`/`Data` carry an opaque versioned payload, `Posture` and `PostureRevision` carry
+standing/sitting transitions, `SeatId` identifies the occupied networked `SitSpot`, and Fusion
+authority determines who may publish. It must remain free of UMA references. The opaque payload
+describes construction/customization, not continuous HMD and hand poses; those continue through
+the existing multiplayer VR synchronization path.
 
 ### Provider selection and legacy coexistence
 
-The following changes are generic extension points even though UMA is the first consumer:
-
-- `PlayerNetworkSetup.AvatarConstructionOverride` allows an external provider to replace stock
+- `PlayerNetworkSetup.AvatarConstructionOverride` lets an external provider replace stock
   construction for one player.
-- `AvatarSelectionManager.SuppressLegacyAvatars` prevents the Home avatar selector from fighting
-  an external provider.
+- `AvatarSelectionManager.SuppressLegacyAvatars` keeps the Home avatar selector from fighting an
+  external provider.
 - Per-player mode switching and stock fallback allow mixed stock/provider sessions.
-- `UmaAvatarBridge` currently translates Fusion state into provider build/teardown calls.
-
-The hook and mode transport should become provider-neutral core/integration facilities. Stock
-avatar teardown details remain a VertexForm adapter concern.
+- `UmaAvatarBridge` translates Fusion state into provider build/teardown calls.
 
 ### Home and world hosts
 
-`HumanoidAvatarPresentationController` now serves both Home and networked world rigs for semantic
-first-person visibility and local-camera culling. `UmaHomeAvatar` and `UmaAvatarBridge` supply
-only their host policy (first/third person and whether head-only visibility is safe), camera
-discovery, provider creation/refresh, authority, and persistence/network events. Construction and
-refresh remain provider/VertexForm concerns until a second avatar provider proves the required
-factory contract.
+`HumanoidAvatarPresentationController` serves both Home and networked world rigs.
+`UmaHomeAvatar` and `UmaAvatarBridge` supply only host policy (first/third person, whether
+head-only visibility is safe), camera discovery, provider creation/refresh, authority, and
+persistence/network events. Construction and refresh remain provider/VertexForm concerns until a
+second provider proves the factory contract (Roadmap R2).
+
+### Avatar Studio
+
+The provider-neutral panel is embedded under VertexForm's existing Change Avatar station in Home.
+It has provider tabs (Classic, Custom), a three-column lower layout (provider-owned category rail,
+opaque-black live preview, active controls), and identical bottom-right Save Avatar actions.
+Classic contributes one Avatar category with Previous/Next; Custom contributes Body, Face, Colors
+and Outfits. Preview framing: Classic centers and scales its renderer bounds to 94 % of the usable
+preview; UMA keeps the authored preview transform, centers horizontally and pins the feet to the
+preview floor so height grows upward. Only the selected provider's preview may be visible.
 
 ### Proximity hiding
 
-Remote-avatar proximity hiding is provider-neutral behavior, but the current implementation knows
-how to find both stock and UMA renderer hierarchies. It should query registered avatar instances
-for renderer bounds and visibility instead. That would automatically support future providers.
+`RemoteAvatarProximityHider` hides nearby remote avatars. It currently locates avatars through
+`PlayerNetworkSetup` rather than through `IHumanoidAvatarInstance.TryGetRendererBounds`, so it is
+host-coupled and would not automatically support another provider (Roadmap R4).
 
-## Current Mixed-Class Debt
+## Network boundary for sitting
 
-`UmaAvatarPuppet` is the primary mixed class. It currently owns:
+Sitting is transient embodiment state, generic across providers, and is not part of the UMA
+payload. The posture slice is implemented:
 
-- UMA build, recipe, DNA, colors, and renderer splitting.
-- Unity humanoid bone binding and arm IK.
-- Provider-specific skeleton/IK rebind execution after generic tracking recovery requests.
-- height calibration and body alignment.
-- animation suppression and locomotion.
-- visibility execution and diagnostics.
-- direct VertexForm authority/input queries.
+- `PlayerNetworkSetup.IsSitting` is the local VertexForm source; `UmaAvatarBridge` publishes it
+  and the current `SeatId`; `HumanoidPostureAnimator` consumes the generic state.
+- `GHA_Locomotion_v2.controller`, assigned to both player prefabs, exposes the int `Posture`
+  parameter and transitions between its locomotion blend tree and the seated state. Tracked head
+  and arm solving continues after the Animator.
+- `SitSpot` acquires Shared Mode state authority before claiming or releasing a seat, replicates
+  the occupying player's `NetworkId`, rejects double-booking, and recovers stale claims.
+- Each seat may author an optional `SeatedPelvisTarget`. `SitPoint` remains the player/root anchor.
+  After the seated loop owns the lower body, `HumanoidSeatedPelvisAlignment` moves the visual root
+  so the Hips bone lands on the target and aligns the forward axis with its +Z. The target is
+  resolved locally from the occupied `SitSpot` and remotely from the replicated `SeatId`.
+- For the local player the host adapter applies the same horizontal delta to the XR camera
+  offset; the standing posture event restores it. Provider rendering is suppressed from the sit
+  request until pelvis/facing/view alignment succeeds; the UMA adapter does this with
+  `Renderer.forceRenderingOff`.
 
-This was useful while establishing working behavior, but it is the wrong long-term boundary.
-Adding another avatar provider today would either duplicate the VR work or force that provider to
-depend on a class that imports UMA.
+Remaining contract items (roadmap, not scheduled): additional posture values such as crouching,
+seat-height profile selection for the Ground/Low/Medium/High clips, an explicit replicated anchor
+only if seats can move after occupation, and optional calibrated body scale if remote clients
+cannot derive it deterministically.
 
-`UmaAvatarBridge` is also mixed. It combines provider selection/network transport, UMA payload
-encoding, local camera policy, and stock-system teardown.
+## Status history
 
-`UmaHomeAvatar` combines generic Home host behavior with UMA persistence and construction.
+### July 14, 2026: framework extraction
 
-## Recommended Extraction
+First compiling extraction after local VR acceptance: `IHumanoidAvatarInstance`,
+`AvatarVisibility`, `HumanoidArmRig`, `VrHeightCalibration`, `HumanoidLocomotionDriver`,
+`IHumanoidRigInput`, `VertexFormHumanoidRigInput`, `HumanoidVrAlignment`,
+`AvatarCameraVisibilityController`, `HumanoidTrackingLifecycle` and
+`HumanoidAvatarPresentationController`. `UmaAvatarPuppet` became the UMA construction/renderer
+adapter delegating IK, alignment, calibration and locomotion to the framework. The two packages
+and `PACKAGE-BOUNDARIES.md` (July 28) were established in the working tree.
 
-Do this after local VR embodiment is stable enough to preserve as a baseline. Avoid a large
-rewrite while hand, arm, head, and seated behavior are still changing.
+### August 2026: migration into the public branch
 
-### Extraction status (July 14, 2026)
+- August 18: ignored UMA vendor content rebuilt from official UMA v3.04 (`722b308a`) with
+  `Tools/Sync-Uma.ps1`; Global Library rebuilt in the target, not copied.
+- August 25: GHA fast-forwarded to official VertexForm3D PR #55 / Starter Kit 1.1.7; package
+  manifest and lock reconciled; Fusion bake of both player prefabs verified; migration runbook and
+  session handoff written.
+- August 26: Avatar Studio built and validated live from LoginScene: Classic/Custom tabs, 3D
+  preview, UMA Body/Face/Colors/Outfits workflow. Host integration fault fixed where stale
+  `ProjectManager`/`AvatarSelectionManager` references hid Classic.
+- August 28: Classic Previous/Next rebuild the visible preview; Classic and Custom share the Save
+  Avatar layout.
 
-The first compiling extraction slice is implemented after local VR acceptance:
+### September 2026: content baseline, body types, installers, packaging
 
-- `IHumanoidAvatarInstance` and `AvatarVisibility` define the provider-neutral constructed-avatar
-  and semantic first-person visibility surface.
-- `HumanoidArmRig` owns Unity Humanoid bone lookup, runtime Animation Rigging constraints, target
-  proxies, and wrist-axis offsets without UMA, Fusion, Photon, or VertexForm dependencies.
-- `VrHeightCalibration` owns standing stability, one-time scale calculation, and calibration lock
-  state without provider or host dependencies.
-- `HumanoidLocomotionDriver` owns root-motion measurement, locomotion animator parameters, and
-  tracked-VR animator suppression/restoration without UMA or VertexForm dependencies.
-- `IHumanoidRigInput` defines semantic head, body, hand, authority, and tracking inputs.
-- `VertexFormHumanoidRigInput` is the host adapter that translates `AvatarInputConverter`,
-  `PlayerNetworkSetup`, platform presentation, and XR tracking into that shared contract.
-- `HumanoidVrAlignment` owns grounded root placement, yaw, eye-point correction, and standing
-  height calibration while the host supplies its resolved floor height.
-- `UmaAvatarPuppet` remains the UMA construction/renderer adapter and delegates arm IK and height
-  alignment/calibration and locomotion animation to the framework classes.
-- `UmaAvatarBridge` and `UmaHomeAvatar` now request semantic visibility states rather than UMA
-  renderer booleans.
-- `AvatarCameraVisibilityController` owns provider-neutral local-camera culling and shared XR
-  camera diagnostics; Home and Fusion hosts only resolve their camera and choose visibility.
-- `HumanoidTrackingLifecycle` owns provider-neutral HMD loss/regain transitions and the delayed
-  focus/resume reinitialization queue. `UmaAvatarPuppet` retains only the concrete UMA skeleton/IK
-  rebind and standing-idle response required when those transitions occur.
-- `HumanoidAvatarPresentationController` owns the shared semantic visibility decision and invokes
-  `AvatarCameraVisibilityController`; Home and Fusion retain only policy and camera discovery.
+- September 1: preview framing policy (Classic bounds fit; UMA planted feet, upward growth).
+- September 3: three-column reference layout with provider-owned category rail.
+- September 4: UMA load performance baseline recorded (`GHA-UMA-PERFORMANCE-BASELINE-2026-09-04.md`).
+- September 5: UMA vendor content upgraded to upstream master `c9204fe4`; 12 shader graphs
+  repaired from develop `f4edf41ba` (destination only). VertexForm3D 1.1.9 merged. Arm IK made
+  VR-only; desktop arm animation accepted by the owner. First GHA commits on the public branch:
+  core seams, framework, UMA adapter, Avatar Studio checkpoint.
+- September 7: Human Male/Female body types with per-type outfit recall. Host installer
+  preflights targets, verifies saves and preserves snapshots; obsolete Cesium components removed
+  from both player prefabs. UMA provider installer roots its references across UMA's rebuild,
+  validates catalog Humanoid definitions, and creates the project-owned Global Library
+  automatically on a fresh install. Source UMA checkout policy corrected to verbatim upstream.
+- September 8–17: reviewer setup guide written and simplified; quick-setup appendix added.
+- September 18: guide split into developer (source clone) and user (packages) editions;
+  packaging and distribution decision recorded below; this document brought up to date.
 
-The accepted-baseline framework extraction is complete. Future provider work can generalize
-construction factories and proximity bounds once a second implementation supplies concrete
-requirements.
+## Packaging and distribution
 
-### 1. Define provider capabilities
+Decision, September 18, 2026:
 
-Create a provider-facing contract conceptually equivalent to:
+1. **Developers build from source.** The development workflow is this repository plus a clean
+   UMA source checkout, pulling from both upstream repositories (VertexForm3D Master and UMA
+   master). `Tools/Sync-Uma.ps1` installs the pinned UMA revision; the two Editor menus install
+   the layers. When bumping the UMA pin, choose a released tag so developers and users share one
+   revision (v3.05 = `c9204fe4` today). After merging upstream VertexForm3D, regenerate the host
+   patch against the new stock versions of the five core scripts.
+2. **The GHA host layer is to be contributed upstream to VertexForm3D**: the five core-script
+   seams as real edits, `com.vertexform3d.gha`, the `Integration/VertexForm` adapters, the Avatar
+   Studio panel prefab and icons, and the prefab/Home wiring the host installer performs today.
+   Upstream ships these pre-wired, so the host installer and `VERTEXFORM_GHA_HOST` disappear for
+   users. Required evidence: a stock-only runtime pass showing Classic avatars, networking and
+   seating unchanged with no provider installed; zero UMA references; no new package dependencies
+   (all four the package declares are already in the 1.1.9 manifest); a reviewable diff.
+3. **`.unitypackage` files are strictly end-user deliverables** built from this repository by an
+   Editor export script with a fixed path list per deliverable. Users install UMA from the
+   official UMA release (`UMA3_f5.unitypackage`), then the GHA UMA provider package, then run
+   Install UMA Provider Layer. Until the host layer is upstream, a temporary host package is a
+   third download.
+4. **Both package folders move under `Assets/VertexForm3D/3rdPartyAssets/GHA`.** A
+   `.unitypackage` cannot carry `Packages/` content, and VertexForm3D's own Package Updater
+   delivers `.unitypackage` files, so even the upstream host layer must live under `Assets` to
+   reach users who update that way. The asmdefs move with the folders; the compile-time boundaries
+   are unchanged. The 14 hardcoded `Packages/com.vertexform3d.gha*/...` paths in the installer
+   and validation tools are updated; Unity drops the embedded records from `packages-lock.json`.
+5. **UPM is a later option, not the current plan.** `com.vertexform3d.gha.uma` could become a
+   UPM package once (a) the host contracts are upstream, (b) Roadmap R5 removes its direct
+   VertexForm references, and (c) Roadmap R7 makes the catalog a project asset so an immutable
+   package is never written to. Nothing in the current plan closes that route.
 
-```csharp
-public interface IHumanoidAvatarInstance
-{
-    Transform Root { get; }
-    Animator Animator { get; }
-    bool IsReady { get; }
-    event Action HumanoidRebuilt;
-    void SetFirstPersonVisibility(AvatarVisibility visibility, int cullLayer);
-    Bounds GetRendererBounds();
-}
-```
+The user-facing steps are in `GHA-getting-started.md`; the source workflow is in
+`GHA-developer-getting-started.md`.
 
-Construction and payload handling should use a separate provider contract so the embodiment code
-does not know about recipes, race systems, or SDK assets.
+## Roadmap
 
-### 2. Extract generic components
+Every design commitment in this document that is not delivered, plus new work agreed since July.
+Items are not ordered here; `GHA-IMPLEMENTATION-PLAN.md` at the repository root sequences them
+together with the known defects.
 
-Suggested responsibilities, not mandatory final names:
+### R1: Physical-fit policy
 
-- `HumanoidAvatarEmbodiment`: body alignment, eye matching, tracking lifecycle, animation
-  ownership, and orchestration.
-- `HumanoidArmRig`: humanoid bone binding, two-bone IK, target proxies, and wrist profiles.
-- `VrHeightCalibration`: standing detection, one-time scale calculation, lock/reset state.
-- `AvatarVisibilityController`: semantic visibility policy and local-camera culling.
-- `AvatarRigInput`: semantic head/body/hand/floor targets supplied by a host adapter.
+Not started. The accepted design:
 
-These classes must not import `UMA`, `UMA.CharacterSystem`, or Fusion.
+| Mode | Intended providers | Behavior |
+|---|---|---|
+| `ProviderProportions` | UMA or another parametric provider | The provider adjusts stature-related proportions (legs, torso) toward the player's measurements. A small, bounded uniform residual scale may follow a rebuild. |
+| `UniformScale` | Conventional imported Humanoid prefabs, FBX, GLB, or providers without proportion controls | Uniformly scale the ready avatar from its authored eye-to-sole measurement. Preserves skeleton, animation, IK and attachment relationships but changes every dimension, so it must be an explicit player/author choice. |
+| `AuthoredScale` | Arbitrary imported avatars, unusual rigs, or any provider that cannot promise safe fitting | Preserve the authored scale; embody differently sized players with head/root following plus arm and leg IK within the rig's reach. The required conservative fallback and the default for an unknown source. |
 
-### 3. Leave an UMA adapter
+Each provider or imported-avatar profile exposes: authored eye-to-sole height and the transforms
+used to measure it; recommended uniform-scale range if supported; whether proportion fitting is
+supported; available head/hand/foot targets and IK support; any rebuild notification required
+before measurements are valid. Missing or invalid metadata resolves to `AuthoredScale`. The
+resolved mode and any locked uniform scale belong to the selected avatar's embodiment profile and
+are synchronized when needed. The customizer shows the measured standing eye height and the
+avatar's authored height, offers "match my height" (provider-driven for UMA; uniform scale as an
+explicit opt-in for generic Humanoids) and explains the trade-off.
 
-The remaining UMA adapter should own:
+Current behavior: `HumanoidVrAlignment` applies one uniform scale from the session's standing eye
+height whenever `autoScale` is enabled, for every provider, with no mode, metadata or UI. This is
+an implicit `UniformScale` and contradicts the policy's requirement that it be explicit.
 
-- DCA creation and lifecycle.
-- Race, wardrobe, DNA, and color application.
-- Recipe codec and persistence.
-- Animator-ready/rebuilt notifications.
-- Head renderer splitting and UMA renderer bounds.
-- UMA material/content validation.
+### R2: Local Humanoid prefab/FBX proof provider
 
-`UmaAvatarPuppet` can either shrink into this adapter or be replaced by an explicitly named
-`UmaAvatarProvider`/`UmaAvatarInstance` pair.
+Not started. A provider that returns an already imported Humanoid prefab through the same
+`IHumanoidAvatarInstance` contract, proving that shared embodiment does not depend on UMA's DCA
+lifecycle. `UmaAvatarPuppet` is currently the only implementation of the contract, so the
+construction factory generalization and the contract itself are unproven against a second body.
 
-### 4. Thin the application hosts
+### R3: Provider registry for the mode byte
 
-- A Fusion host reads `AvatarExtensionSync`, selects a provider, and supplies authority and
-  synchronized rig targets.
-- A Home host selects the locally persisted provider and supplies the Home XR rig targets.
-- Both hosts use the same generic embodiment components.
-- Provider payloads stay opaque outside their provider adapter.
+Not started. `AvatarProviderSelection` persists a mode byte; nothing maps it to an adapter and
+payload codec. The Fusion host should select a provider through a registry rather than through
+`UmaAvatarBridge` knowing it is UMA. Depends on R2 for a second registrant.
 
-## Network Boundary for Future Sitting
+### R4: Proximity hiding through the instance contract
 
-Sitting should not be added to the UMA payload. It is transient embodiment state and should be
-generic across avatar providers.
+Not started. `RemoteAvatarProximityHider` should query registered avatar instances for renderer
+bounds and visibility (`TryGetRendererBounds`) instead of locating avatars through
+`PlayerNetworkSetup`.
 
-The first provider-neutral posture slice now represents standing/sitting plus a transition revision
-on the existing `AvatarExtensionSync`. `PlayerNetworkSetup.IsSitting` remains the local VertexForm
-source; `UmaAvatarBridge` publishes it and the current `SeatId` for proxies, and
-`HumanoidPostureAnimator` consumes the generic state without referencing UMA.
-`GHA_Locomotion_v2.controller`, which is assigned to both player prefabs, exposes the preferred
-integer `Posture` parameter and transitions
-between its locomotion blend tree and the Humanoid `SitMed01` state. Tracked head and arm solving
-continues after the Animator so the animation owns the lower body without disabling upper-body
-embodiment.
+### R5: Remove direct VertexForm references from the UMA adapter
 
-`SitSpot` now acquires Shared Mode state authority before claiming or releasing a seat, replicates
-the occupying player's `NetworkId`, rejects active double-booking, and recovers stale claims left
-by disconnected players.
+In progress since July; six classes remain in `Integration/UMA` plus the UMA installer. Replace
+their `PlayerNetworkSetup`, `AvatarInputConverter`, `ProjectManager`, `RoomManager`,
+`AvatarSelectionManager` and Home station dependencies with host contracts in
+`com.vertexform3d.gha` (implemented in `Integration/VertexForm`, which goes upstream). Exit
+criterion from `Integration/README.md`. Prerequisite for UPM delivery of the UMA package.
 
-Each seat may also author an optional `SeatedPelvisTarget`. `SitPoint` remains the authoritative
-player/root anchor and facing contract. After the seated loop has taken ownership of the lower
-body, the provider-neutral `HumanoidSeatedPelvisAlignment` applies a visual-root correction so the
-Humanoid Hips bone lands on `SeatedPelvisTarget`, and aligns the avatar's forward axis with the
-target transform's positive Z axis. The sit-down and stand-up clips are deliberately left
-unpinned. Stable-loop recognition uses the configured Animator state contract rather than
-unreliable imported-clip loop metadata. The target is resolved locally from the occupied
-`SitSpot` and remotely from the existing replicated `SeatId`; it is not provider data and is not
-added to the UMA recipe. When the final visual-root correction is first applied for the local
-player, the host adapter applies the same horizontal delta to the local XR camera offset so the
-viewpoint remains inside the relocated head. This does not move the network/player root away from
-`SitPoint`; the saved camera offset is restored by the standing posture event. The generic
-transition decision also suppresses provider rendering from the initial sit request until the B
-Loop pelvis/facing/view alignment succeeds. The UMA adapter executes that policy with
-`Renderer.forceRenderingOff`, preserving renderer enabled states and preventing the intermediate
-root-to-pelvis jump from appearing in first person, mirrors, or remote views.
+### R6: Remote Vertex-compatible GLB provider
 
-The remaining reusable network contract should represent:
+Future. A standard GLB cannot carry MonoBehaviours, Animator Controllers, `RigBuilder`, or
+constraint components. A Vertex avatar export path should produce a validated Humanoid skeleton,
+meshes, skins, materials, optional animations, Vertex metadata in GLTF extras or a companion
+manifest, and a mapping profile. `RemoteHumanoidGlbProvider` downloads that package and returns the
+ready-instance contract. Remote assets come from an experience-controlled catalog/allowlist. The
+design must not block this provider; no downloader is required now.
 
-- Additional posture values such as crouching, if required.
-- Seat-height/profile selection for the supplied Ground/Low/Medium/High clips.
-- An explicit replicated anchor pose only if future seats can move independently after occupation;
-  static seats already use the player's synchronized root position and rotation.
-- Optional calibrated body scale if remote clients cannot derive it deterministically.
+### R7: Catalog as a project asset
 
-Local XR tracking remains authoritative for head and hands. The seated animation and lower-body
-pose reconstruct around the networked seat anchor without changing avatar scale.
+Not started. `GhaUmaAssetInstaller` writes to `UmaAvatarCatalog.asset` inside the package when
+color channels are missing, and body-type authoring edits the same asset. The installer should copy
+the catalog into the project on first install and point the Home avatar, player prefabs and panel at
+the copy, so users can add body types without editing package content and an immutable UPM package
+is never written to.
 
-## Near-Term Rule
+### R8: UMA material and content audit
 
-Going forward:
+Not started. Audit UMA materials by race and wardrobe category on Editor/URP, Quest, WebGL and
+WebGPU/WebXR. Fix only failing shader assignments, surface settings, textures and import settings.
+Includes the deferred outfit thumbnail/material mismatches and lighting wash-out (September 5), and
+a decision on `UMA_SG_Diffuse.shadergraph`.
 
-- UMA build/render/customization fixes may remain in `UmaAvatarPuppet`.
-- New XR calibration, tracking, IK, posture, or visibility behavior should be written so it uses
-  only Unity humanoid concepts internally, even if its current entry point remains in an UMA-named
-  class.
+### R9: UMA generation performance
+
+Deferred until the functional gates are complete (runbook rule 1). UMA generation blocks the main
+thread; a loading label does not make headset frames smooth. Baseline in
+`GHA-UMA-PERFORMANCE-BASELINE-2026-09-04.md`; candidate approaches include UMA's incremental mesh
+combiner (v3.02+) and pre-warmed default builds.
+
+### R10: Host version gate in the installers
+
+Not started. The host installer should refuse a mismatched VertexForm3D version explicitly instead
+of failing on the source patch; the provider installer should refuse a mismatched host version.
+Record supported VertexForm3D, UMA and GHA versions per release.
+
+### R11: Jump animation
+
+Not started (reported September 18). Determine whether VertexForm's locomotion exposes a jump
+input and whether `GHA_Locomotion_v2` or the supplied clips include a jump state; if a clip is
+available, wire the state and trigger; if not, source or author one. Provider-neutral: belongs in
+`HumanoidLocomotionDriver` and the shared controller, not in the UMA adapter.
+
+### R12: Upstream contribution of the host layer
+
+Not started. See [Packaging and distribution](#packaging-and-distribution) item 2. Depends on the
+package folder move (item 4) and on the stock-only runtime evidence from R13.
+
+### R13: Remaining runtime validation matrix
+
+In progress. From the runbook: stock-only session, UMA-only session, persistence, spawn/remote
+reconstruction, scene transitions, seating, two-client, PC Link VR regression after the September 5
+arm change, Quest standalone, WebGL/WebGPU/WebXR. Mixed-provider Change Avatar opening, provider
+switching and preview construction have accepted Desktop evidence; the rest is pending.
+
+### R14: Sitting contract extensions
+
+Not scheduled. Crouching, seat-height profiles, movable-seat anchors, replicated body scale (see
+[Network boundary for sitting](#network-boundary-for-sitting)).
+
+### R15: Lip sync and facial input
+
+Not started (added September 18). The responsibility split above assigns the framework a shared
+semantic face/viseme input contract and the provider the blendshape/bone/channel mapping and
+rebinding; `REFERENCE-REVIEW.md` items 7 and 16 record the same intent. Nothing implements it.
+
+What exists today:
+
+- VertexForm core has a stock, amplitude-only lip sync in `HighlightVoice` on the player prefab:
+  it samples the Photon Voice `Speaker` AudioSource and drives one `viseme_O` blendshape on a
+  serialized Classic head mesh. It runs for remote players only (the local Recorder link is
+  commented out) and it is Classic-only, because the head mesh is a serialized reference.
+- UMA 3 supplies two expression systems on the human races: the legacy `UMAExpressionPlayer`
+  (`jawOpen_Close`, `mouthNarrow_Pucker`, lip channels, optional Mecanim jaw override) and the
+  v3.04 `DynamicExpressionPlayer` driven by `UMAExpressionGroup` DNA definitions with a
+  `SetExpression(id, value)` API. Neither is attached to GHA avatars, and no GHA code references
+  them.
+- The GHA UMA puppet already knows the generated head renderer (it routes the head slots to its
+  own `UMARendererAsset`) and, after BUG-11, re-runs its completion handling on every rebuild, which
+  is the rebind point lip sync needs.
+- The retired Ready Player Me project (`vertexform3d-unity-vr-starterkit-Dev - RPM`, reviewed
+  September 18) is the reference to reinvestigate, with two corrections to the recollection. It
+  does **not** contain Oculus LipSync: no `OVRLipSync` package or scripts exist there. Its lip sync
+  is the RPM SDK's `LipSync.cs`, an amplitude-only driver that samples the **local microphone**
+  directly (`Microphone.Start`, 4096-sample window, ×10 gain, clamped) and writes one `mouthOpen`
+  blendshape on the head, beard and teeth meshes; it never used the voice network stream. The
+  viseme-style name `viseme_O` in today's `HighlightVoice` is the Oculus/RPM blendshape naming
+  left over from that era; the Classic heads carry no such shape, so the stock lip sync is
+  effectively inert on Classic avatars. What is worth reusing from RPM: sampling the local
+  microphone for the local player's own mouth (mirrors, third person), the multi-mesh blendshape
+  map, and the platform microphone-permission handling for Android/iOS. What is not: the SDK's
+  RPM-specific mesh lookup, and a second microphone capture next to Photon Voice's `Recorder`,
+  which should be the single local audio source.
+
+Design:
+
+1. Framework: `IHumanoidFaceInput` (or an extension of `IHumanoidRigInput`) carrying a normalized
+   mouth-open level now and a viseme weight set later; a `HumanoidFaceDriver` that smooths and
+   gates it, mirroring `HumanoidLocomotionDriver`. Provider capability flag `SupportsLipSync` so
+   unsupported providers degrade silently.
+2. Host adapter (`Integration/VertexForm`): feed the level from Photon Voice, remote players from
+   the `Speaker` AudioSource as `HighlightVoice` does, local player from the `Recorder` level
+   meter so mirrors and third person move the local mouth. No new network data: each client derives
+   the level from the audio it already receives, as stock does.
+3. UMA provider: map the level to the race's expression system (prefer `DynamicExpressionPlayer`
+   with the human `DynamicExpressionSet`; fall back to `UMAExpressionPlayer.jawOpen_Close`),
+   attach the player at build, rebind after every rebuild through the puppet's completion handler.
+4. Classic provider: keep `HighlightVoice` behavior but source it from the same contract, so the
+   stock path and GHA path cannot drift.
+5. Later: a real viseme analyzer (uLipSync, Oculus LipSync, or Photon's) behind the same contract;
+   the analyzer choice is a host decision, not a provider one.
+
+Acceptance: remote UMA and Classic mouths move with speech on desktop and PC Link; the local UMA
+mouth moves in the Home mirror; no movement when muted; no regression after Save Avatar rebuilds;
+performance measured per frame on Quest.
+
+## Known defects
+
+Status as of September 18, 2026. "Confirmed" means reproduced by the owner; the September 18 entries
+were confirmed in the owner's own sessions, the earlier ones are recorded in the runbook or handoff.
+"Fixed, owner-verified on desktop" means the owner re-ran the repro in the Editor on the desktop
+platform after the fix; PC Link VR and second-client checks for those fixes are still part of R13.
+Fixed entries stay listed until the fix is committed.
+
+| ID | Status | Area | Description |
+|---|---|---|---|
+| BUG-1 | Fixed Sep 18, owner-verified on desktop | Home / Avatar Studio | Two avatars visible at once, mostly right after startup. Repro: the persisted choice from the previous run is UMA; enter Home; open Change Avatar and pick Classic. The Classic avatar spawns as the player but the persisted UMA avatar is not hidden. Switching back to UMA, saving, then choosing Classic again works. Cause (confirmed live, Sep 18, from the Console and a read-only scene inspection): two faults. (1) With no saved mode key, the hosts default to the catalog's default system (UMA) while the Studio defaulted to its first tab (Classic), so the Studio opened on Classic although the rig had built UMA. (2) Selecting the Classic tab, or pressing Previous/Next, had the stock provider switch `SuppressLegacyAvatars` off and run `AvatarSelectionManager.ActivateAvatarModelAt`, which instantiates the head/body both into the station preview and onto the rig's `CustomAvatar` (`headTransform`/`bodyTransform`) and reactivates that root. That put a Classic body on the rig next to the live UMA puppet without any save. After a UMA save, `UmaHomeAvatar.Refresh` hid the root again, which is why the sequence "UMA, save, Classic" worked. Fix applied Sep 18 (compiles with zero errors; runtime check pending): `ActivateAvatarModelAt` now refreshes only the platform preview while suppression is on (core seam, host patch regenerated); the stock provider no longer toggles suppression; `AvatarProviderSelection.DefaultMode` carries the host default so the Studio opens on the provider the host built. The rig's body still changes only on Save through `UmaHomeAvatar`. |
+| BUG-2 | Fixed Sep 18, owner-verified on desktop | Avatar Studio / UMA | DNA slider changes reach the preview but are not applied to the player avatar, and are not applied to either avatar after a restart, although the values persist. Colors and outfits save and restore correctly. Owner log from a save: `Saved — system 'UMA Avatar', race 0, 4 wardrobe, 2 dna, 3 color(s)`, followed by `[UmaHomeAvatar] Refresh — mode UMA`, a rebuild trace (`build=rebuild ... dna=2`) and `[UmaAvatarPuppet] Rebuilt avatar ... 2 dna`. So the recipe carries the two DNA values through save, persistence and rebuild; the fault is in applying them. Cause (confirmed in source and in the Editor, Sep 18): both `UmaAvatarPuppet.ApplyDna` and the customizer's `ApplyPreviewDna` stage the values in the DCA's `predefinedDNA`. UMA's `ApplyPredefinedDNA()` returns immediately for races with `useNewDNA`, and both `Human Male 3.0` and `Human Female 3.0` have `useNewDNA=True` (read from the RaceData assets through the Editor). So predefined DNA is never applied to these races on any build. Live slider moves work only because they go through `GetDNA()` setters plus a DNA-only `ForceUpdate`. Fix applied Sep 18 (compiles, runtime check pending): both paths now also write the values through the DNA setters, before a plain rebuild (UMA keeps the live new-DNA collection across it) or in the `CharacterUpdated` callback after a first or race-change build, followed by `ForceUpdate(true, false, false)`. `predefinedDNA` staging is kept for legacy-DNA races. |
+| BUG-3 | Confirmed Sep 18 | Locomotion | The walk animation sometimes does not play on the first load of Home; the avatar slides with idle playing. Not yet seen in the Editor with the Console open; trigger and recovery unknown. Suspects: `HumanoidLocomotionDriver` root-motion measurement not started for the first build, tracked-VR suppression left on for a desktop session, or the Animator reference not reacquired after the first UMA rebuild. Owner will capture Console output on the next occurrence. |
+| BUG-4 | Confirmed Aug 26 | Runtime | Repeated XR Affordance receiver and `AvatarInputConverter.Update` null-reference errors, pre-existing before Avatar Studio work; needs a separate gameplay-debug pass. |
+| BUG-5 | Confirmed Sep 5 | UMA content (upstream) | `Assets/UMA/SRP/ShaderGraphs/Materials/UMA_SG_Diffuse.shadergraph` fails JSON import on upstream master and develop. Not repaired; tracked under R8. |
+| BUG-6 | Confirmed Sep 7 | VertexForm content (upstream) | SketchUp importer assertions for `Assets/VertexForm3D/Example_Assets/Ocean Villa/Tree.skp`. Not a GHA defect; report upstream. |
+| BUG-7 | Confirmed Sep 7 | VertexForm content (upstream) | Missing nested VRKeys prefab references in the `[ENVIRONMENT].prefab` assets under `LoginSceneAssets/` and `HomeSceneAssets/`. Not a GHA defect; report upstream. |
+| BUG-8 | Confirmed Sep 5, deferred | UMA content | Some outfit thumbnails differ from their materials; lighting washes out colors. Tracked under R8. |
+| BUG-9 | Confirmed Sep 4 | Performance | UMA generation stalls the main thread on first and repeated loads. Tracked under R9. |
+| BUG-10 | Pending recheck | VR | PC Link VR regression check after the September 5 VR-only arm IK change has not been performed. Tracked under R13. |
+| BUG-11 | Fixed Sep 18, owner-verified on desktop | UMA adapter | After any rebuild of the player avatar (Save with slider, outfit or color changes) in first person, the camera appears to sit inside the head: the whole avatar renders around the camera. Live inspection showed the puppet still requesting head/body hidden on cull layer 7 while both freshly generated renderers sat on layer 0. Cause: the puppet handled build completion only in UMA's `CharacterCreated`, which fires once per character; rebuilds raise only `CharacterUpdated`, so visibility re-application, bone caching, IK rebind and `HumanoidRebuilt` were skipped after every rebuild. Fix applied Sep 18 (compiles with zero errors; runtime check pending): completion handling runs on every non-cancelled `CharacterUpdated`, once per build. Likely also a contributor to BUG-3, since Animator/bone state was not refreshed after rebuilds. Separate observation from the same session: a single mouse-wheel notch over the Studio UI is consumed by `XRRigController.HandleZoom` and can flip the rig into first person; upstream VertexForm behavior, not GHA. |
+
+| BUG-12 | Confirmed Sep 18 | XR Interaction Toolkit (upstream) | `No available indices for pointer registration` logged from XRI's `XRUIToolkitHandler` while Fusion instantiates a remote player prefab (`NetworkObjectProviderDefault.InstantiatePrefab`). The spawned prefab's XR interactors register as UI pointers and XRI's pointer table is full. Not GHA: the player prefabs carry the interactors in stock VertexForm. Effect is that the extra pointers cannot drive UI Toolkit panels, which remote players should not do anyway. Fix belongs upstream: disable UI interactors on non-local players at spawn, or raise nothing and accept the log. Track with BUG-6/BUG-7 as upstream reports. |
+
+Jump animation (reported September 18) is a missing feature, not a defect, and is Roadmap R11.
+
+## Near-term rules
+
+- UMA build/render/customization fixes may remain in `UmaAvatarPuppet` and the staging classes.
+- New XR calibration, tracking, IK, posture, or visibility behavior is written against Unity
+  Humanoid concepts only, in `com.vertexform3d.gha`, even if its entry point is a UMA-named class.
 - Do not put seated state, hand poses, or provider-independent rig data into `UmaRecipeCodec`.
 - Keep `AvatarExtensionSync` provider-neutral.
 - Treat material fixes as UMA content work, not embodiment work.
+- Do not modify pristine UMA vendor source to solve GHA integration issues; repairs are
+  destination-only and recorded.
+- Do not start R9 performance work before the functional gates in R13 are complete.

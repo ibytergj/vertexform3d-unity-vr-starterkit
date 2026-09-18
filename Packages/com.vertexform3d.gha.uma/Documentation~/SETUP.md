@@ -1,6 +1,6 @@
 # UMA setup contract
 
-**Reviewers: start with the [getting-started and testing guide](../../../GHA-GETTING-STARTED.md).**
+**Reviewers: start with the [developer getting-started and testing guide](../../../GHA-developer-getting-started.md).**
 This document describes the maintainer contract and body-type authoring rules.
 
 Fresh-install status (September 7): the provider installer now automatically creates and

@@ -2,10 +2,16 @@
 
 ## GHA / UMA integration review
 
-On the `Generic-Humanoid-Avatars` branch, start with the
-[GHA / UMA getting-started and testing guide](GHA-GETTING-STARTED.md).
-It covers the separate UMA installation, Editor setup, desktop/VR checks and known limitations.
-Full fresh-checkout acceptance is pending; read the guide's status before testing.
+On the `Generic-Humanoid-Avatars` branch there are two guides:
+
+- [GHA getting started](GHA-getting-started.md) — for users adding GHA and UMA avatars to an
+  existing Vertex Form3D project from downloadable packages. Draft: the packages are not
+  published yet.
+- [GHA developer getting started](GHA-developer-getting-started.md) — for contributors working
+  on the GHA host adapter or the UMA integration from a source clone. It covers the separate
+  UMA installation, Editor setup, desktop/VR checks and known limitations.
+
+Full fresh-checkout acceptance is pending; read each guide's status before testing.
 
 # **Vertex Form 3D Open Source VR Unity Starter Kit**  
 

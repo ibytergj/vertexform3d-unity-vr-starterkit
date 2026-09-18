@@ -88,6 +88,47 @@ slice.
 
 ## Current repository truth
 
+### September 18 documentation split, packaging decision and Home fixes
+
+Documentation: `GHA-GETTING-STARTED.md` was renamed `GHA-developer-getting-started.md` (source-clone
+workflow for contributors) and a draft `GHA-getting-started.md` describes the intended package-based
+user installation. `Packages/com.vertexform3d.gha/Documentation~/ARCHITECTURE.md` was brought up to
+date (retitled for GHA; current-implementation inventory; July–September status history; roadmap
+R1–R15 for every undelivered design commitment; known-defect register BUG-1–BUG-12).
+`GHA-IMPLEMENTATION-PLAN.md` sequences that work in five phases and is awaiting owner review.
+
+Packaging decision (owner, September 18): developers build from source with both upstream
+repositories; the GHA host layer is to be contributed upstream to VertexForm3D; `.unitypackage`
+files are strictly end-user deliverables built from this repository; both package folders move under
+`Assets/VertexForm3D/3rdPartyAssets/GHA` before the upstream PR; UPM stays a later option. Nothing
+of that is implemented yet; see the plan's Phase B.
+
+Fixes, all `PROVISIONAL` pending commit, VR and second-client passes (owner re-ran each repro on
+desktop in the Editor and confirmed resolution):
+
+- BUG-2 (slider DNA never applied to the player or after restart): UMA's `ApplyPredefinedDNA`
+  returns early for `useNewDNA` races, which both humans are (read from the RaceData assets through
+  the Editor). `UmaAvatarPuppet` and `UmaAvatarCustomizer` now also write DNA through the DCA
+  setters before a plain rebuild or after a first/race-change build.
+- BUG-1 (two avatars after picking Classic on a session that started as UMA): the Studio defaulted
+  to its first tab when no mode was saved while the hosts defaulted to the catalog default, and the
+  stock provider switched `SuppressLegacyAvatars` off to build its preview, which also built the
+  Classic body onto the rig. `AvatarSelectionManager.ActivateAvatarModelAt` now refreshes only the
+  platform preview under suppression (core seam; `VertexFormGhaHost.patch` regenerated for that file
+  only and verified to apply to stock `origin/Master` and reproduce the working tree byte for byte);
+  the stock provider no longer toggles suppression; `AvatarProviderSelection.DefaultMode` carries the
+  host default. Found while regenerating: the working tree's `SceneLoader.cs` carries a world-scene
+  resolve-timeout change that is not in the shipped patch; left as shipped, owner decision pending.
+- BUG-11 (avatar drawn around the first-person camera after any Save): the puppet handled build
+  completion only in `CharacterCreated`, which UMA fires once per character; rebuilds raise only
+  `CharacterUpdated`. Completion handling now runs once per non-cancelled build. Evidence: the
+  post-fix session logs `phase=UMA_CHARACTER_UPDATED` then `FINISH` (236.6 ms) for the rebuild
+  trace `avatar-0004`, where earlier sessions stopped at `UMA_CHARACTER_BEGUN`.
+
+Compilation passed with zero errors after each change (Unity CLI `recompile_status`). Play Mode was
+driven by the owner; the agent performed read-only Console and scene inspection only. Nothing was
+staged, committed or pushed.
+
 ### September 7 UMA installer catalog-reference recovery
 
 The owner completed the test provider install at 18:51 EDT: 488 default index entries, successful
@@ -150,7 +191,9 @@ still requires a later fresh-clone test after the remaining issues are addressed
 ### September 7 external-review setup guide draft
 
 `GHA-GETTING-STARTED.md` is the reviewer entry point, linked from the root README and UMA
-package documentation. It covers public source revisions, Windows sync, integration menus,
+package documentation. (Renamed to `GHA-developer-getting-started.md` on September 18, 2026;
+a separate draft `GHA-getting-started.md` now describes the intended package-based user
+installation, which is not yet implemented.) It covers public source revisions, Windows sync, integration menus,
 local configuration, Desktop/PC Link/two-client checks and known limitations. It is a draft,
 not a verified clean-machine install or approval to publish the current dirty worktree.
 

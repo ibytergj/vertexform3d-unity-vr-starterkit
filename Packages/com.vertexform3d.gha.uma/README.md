@@ -1,7 +1,9 @@
 # VertexForm3D GHA UMA Adapter
 
-For installation and review, read the [getting-started and testing guide](../../GHA-GETTING-STARTED.md)
-first. It identifies fresh-install verification requirements and unverified runtime cases.
+For installation and review, read the
+[developer getting-started and testing guide](../../GHA-developer-getting-started.md) first.
+It identifies fresh-install verification requirements and unverified runtime cases. Users
+installing from packages should use the [user getting-started guide](../../GHA-getting-started.md).
 
 `com.vertexform3d.gha.uma` is the optional UMA provider for
 `com.vertexform3d.gha`.

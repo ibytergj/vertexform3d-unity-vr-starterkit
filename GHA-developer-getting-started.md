@@ -1,6 +1,12 @@
-# Getting started: testing the GHA / UMA integration
+# Developer getting started: building and testing the GHA / UMA integration from source
 
-For Vertex Form3D maintainers reviewing the `Generic-Humanoid-Avatars` branch.
+For Vertex Form3D maintainers and contributors working on the `Generic-Humanoid-Avatars`
+branch: people who want to enhance the GHA host adapter, extend the UMA integration, or review
+the branch from a source clone.
+
+If you only want to add GHA and UMA avatars to an existing Vertex Form3D project, use the
+[user getting-started guide](GHA-getting-started.md) instead. It installs the same integration
+from downloadable packages and does not require a UMA source clone or the sync script.
 
 **Review instructions — September 8, 2026.**
 Follow the steps below from a fresh clone of the review branch. Record the downloaded commit
@@ -306,6 +312,7 @@ trace. Redact credentials and unrelated information from logs before sharing.
 
 ## Maintainer references
 
+- [GHA architecture, roadmap and known defects](Packages/com.vertexform3d.gha/Documentation~/ARCHITECTURE.md)
 - [UMA setup and body-type authoring contract](Packages/com.vertexform3d.gha.uma/Documentation~/SETUP.md)
 - [GHA package overview](Packages/com.vertexform3d.gha/README.md)
 - [UMA adapter overview](Packages/com.vertexform3d.gha.uma/README.md)
