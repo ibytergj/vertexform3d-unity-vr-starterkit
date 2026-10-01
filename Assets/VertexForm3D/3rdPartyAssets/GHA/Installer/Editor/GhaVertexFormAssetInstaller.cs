@@ -77,7 +77,7 @@ namespace GHA.Integration.Editor
             state.hostInstalled = true;
             GhaIntegrationStateStore.Save(state);
             Debug.Log(
-                "GHA host assets installed: provider-neutral panel, Home Change Avatar integration, " +
+                "GHA host assets installed: provider-neutral panel, Home avatar lifecycle and Change Avatar integration, " +
                 "and AvatarExtensionSync on both player prefabs.");
         }
 
@@ -158,6 +158,7 @@ namespace GHA.Integration.Editor
             try
             {
                 contents = PrefabUtility.LoadPrefabContents(HomePrefabPath);
+                EnsureHomeAvatar(contents);
                 AvatarSelectionManager manager =
                     contents.GetComponentInChildren<AvatarSelectionManager>(true);
                 if (manager == null || manager.customAvatarSelectionUI == null)
@@ -244,6 +245,9 @@ namespace GHA.Integration.Editor
             try
             {
                 contents = PrefabUtility.LoadPrefabContents(HomePrefabPath);
+                VertexFormHomeAvatar homeAvatar = contents.GetComponentInChildren<VertexFormHomeAvatar>(true);
+                if (homeAvatar != null)
+                    UnityEngine.Object.DestroyImmediate(homeAvatar);
                 AvatarSelectionManager manager =
                     contents.GetComponentInChildren<AvatarSelectionManager>(true);
                 if (manager == null || manager.customAvatarSelectionUI == null)
@@ -288,6 +292,20 @@ namespace GHA.Integration.Editor
                 if (contents != null)
                     PrefabUtility.UnloadPrefabContents(contents);
             }
+        }
+
+        internal static VertexFormHomeAvatar EnsureHomeAvatar(GameObject contents)
+        {
+            Transform rig = contents.transform.Find("XR Origin (XR Rig)");
+            if (rig == null || rig.Find("CustomAvatar") == null)
+                throw new InvalidOperationException("The Home XR rig must expose its CustomAvatar root.");
+            VertexFormHomeAvatar host = rig.GetComponent<VertexFormHomeAvatar>();
+            if (host == null)
+            {
+                host = rig.gameObject.AddComponent<VertexFormHomeAvatar>();
+                host.Configure(rig.Find("CustomAvatar").gameObject, 7, false);
+            }
+            return host;
         }
 
         private static void EnsureComponent<T>(string prefabPath) where T : Component
@@ -359,6 +377,9 @@ namespace GHA.Integration.Editor
 
         private static void ValidateHomeStation(GameObject contents)
         {
+            Transform rig = contents.transform.Find("XR Origin (XR Rig)");
+            if (rig == null || rig.Find("CustomAvatar") == null)
+                throw new InvalidOperationException("The Home XR rig must expose its CustomAvatar root.");
             AvatarSelectionManager manager = contents.GetComponentInChildren<AvatarSelectionManager>(true);
             if (manager == null || manager.customAvatarSelectionUI == null)
                 throw new InvalidOperationException("HomeSceneComponent must expose AvatarSelectionManager.customAvatarSelectionUI.");

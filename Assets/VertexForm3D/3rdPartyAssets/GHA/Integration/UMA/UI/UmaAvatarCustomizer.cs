@@ -1235,7 +1235,7 @@ namespace GHA.AvatarSuite
 
             if (!AvatarProviderSelection.RequestApplySavedAvatar())
                 Debug.LogError(
-                    "[UmaAvatarCustomizer] No UmaHomeAvatar is installed on the Home rig; " +
+                    "[UmaAvatarCustomizer] No Home avatar host is listening for Save; " +
                     "the saved avatar cannot be applied. Run Tools/GHA/Install Avatar Configuration UI.");
         }
 

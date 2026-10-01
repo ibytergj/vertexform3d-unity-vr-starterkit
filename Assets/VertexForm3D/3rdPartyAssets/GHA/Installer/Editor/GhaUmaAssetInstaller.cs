@@ -314,12 +314,15 @@ namespace GHA.Integration.Editor
         private static void EnsureHostInstalled()
         {
             GameObject panel = AssetDatabase.LoadAssetAtPath<GameObject>(PanelPrefabPath);
+            GameObject home = AssetDatabase.LoadAssetAtPath<GameObject>(HomePrefabPath);
             if (panel == null ||
                 panel.GetComponent<AvatarConfigurationPanel>() == null ||
-                panel.GetComponent<VertexFormCore.GHAIntegration.VertexFormStockAvatarConfigurationProvider>() == null)
+                panel.GetComponent<VertexFormCore.GHAIntegration.VertexFormStockAvatarConfigurationProvider>() == null ||
+                home == null ||
+                home.GetComponentInChildren<VertexFormCore.GHAIntegration.VertexFormHomeAvatar>(true) == null)
             {
                 throw new InvalidOperationException(
-                    "The provider-neutral GHA host panel is not installed. Install the GHA host layer first.");
+                    "The provider-neutral GHA host panel or Home lifecycle is not installed. Install/update the GHA host layer first.");
             }
         }
 

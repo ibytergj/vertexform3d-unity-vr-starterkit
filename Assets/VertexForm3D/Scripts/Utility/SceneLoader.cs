@@ -42,8 +42,16 @@ namespace VertexFormCore
         }
 
 #if !UNITY_WEBGL
+        // Desktop sessions must not acquire a headset at login or during world changes.
+        private static bool IsDesktopPresentation =>
+            ProjectManager.instance != null &&
+            ProjectManager.instance.platforms != null &&
+            ProjectManager.instance.platforms.IsDesktopStylePlatform();
+
         private IEnumerator EnsureXRInitializedAtStartup()
         {
+            if (IsDesktopPresentation)
+                yield break;
             if (XRGeneralSettings.Instance == null || XRGeneralSettings.Instance.Manager == null)
                 yield break;
             if (!XRGeneralSettings.Instance.Manager.isInitializationComplete)
@@ -142,7 +150,8 @@ namespace VertexFormCore
             yield return new WaitForSeconds(0.5f);
 
 #if !UNITY_WEBGL
-            if (XRGeneralSettings.Instance != null && XRGeneralSettings.Instance.Manager != null)
+            if (!IsDesktopPresentation &&
+                XRGeneralSettings.Instance != null && XRGeneralSettings.Instance.Manager != null)
             {
                 if (XRGeneralSettings.Instance.Manager.isInitializationComplete)
                 {
