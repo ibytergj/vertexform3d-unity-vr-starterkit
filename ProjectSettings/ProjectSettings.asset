@@ -12,8 +12,8 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: YourCompanyName
-  productName: YourProductName
+  companyName: iByteProductions
+  productName: VertexGHA
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13207549, g: 0.13207549, b: 0.13207549, a: 1}
@@ -169,7 +169,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.YourCompanyName.YourProductName
+    Android: com.ibyteproductions.vertexgha
     Standalone: com.unity.xr.interaction.examples
   buildNumber:
     Bratwurst: 0
