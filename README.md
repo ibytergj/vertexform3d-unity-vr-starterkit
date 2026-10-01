@@ -13,6 +13,18 @@ On the `Generic-Humanoid-Avatars` branch there are two guides:
 
 Full fresh-checkout acceptance is pending; read each guide's status before testing.
 
+The [implementation and separation plan](GHA-IMPLEMENTATION-PLAN.md) records the September 23
+direction: finish host/provider separation, preserve the combined baseline, then maintain the
+GHA host contribution and a separate VertexForm UMA integration working copy. UMA source
+preference is Asset Store, official GitHub release package, then local repository. The existing
+developer sync scripts remain supported; package acquisition/compatibility validation is pending.
+
+The plan has six phases numbered 0–5. Phases 0–3 and 5 are approved in content; Phase 4 is
+conditionally accepted, with a fresh review before each upcoming phase starts. The
+[Phase 0 baseline and checklist](GHA-SEPARATION-BASELINE-2026-09-23.md#phase-0-completion-checklist-after-owner-plan-review)
+separates completed Desktop evidence from pending PC Link and owner review. Documentation is
+staged for a local checkpoint; no commit or publication is authorized yet.
+
 # **Vertex Form 3D Open Source VR Unity Starter Kit**  
 
 [![Watch the video](https://github.com/evgeniyasimmons/my-sandbox/raw/main/ShortVF3D.gif)](https://youtu.be/1Xt_7Uxr8T)  

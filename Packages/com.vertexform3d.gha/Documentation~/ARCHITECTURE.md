@@ -1,6 +1,6 @@
 # GHA (Generic Humanoid Avatars) Architecture
 
-Status: September 18, 2026. First written July 12, 2026 as the QuantumVertex "Avatar Suite"
+Planning revision: September 23, 2026; runtime inventory recorded September 18. First written July 12, 2026 as the QuantumVertex "Avatar Suite"
 architecture; renamed and brought up to date for the VertexForm3D `Generic-Humanoid-Avatars`
 branch. The design sections describe the accepted direction. [Current implementation](#current-implementation-september-18-2026)
 describes what exists. [Roadmap](#roadmap) lists every design commitment that is not delivered.
@@ -157,7 +157,7 @@ change.
 | Customizer row control | `UmaCustomizerRow` | package |
 | DCA construction, rebuild lifecycle, head renderer split, seated render suppression | `UmaAvatarPuppet` (implements `IHumanoidAvatarInstance`) | Integration staging |
 | Fusion host: authority, provider build/teardown, payload publish, posture/seat publish | `UmaAvatarBridge` | Integration staging |
-| Home host: persisted provider, Home rig targets, preview | `UmaHomeAvatar` | Integration staging |
+| UMA Home build adapter; legacy prefab/UI compatibility | `UmaHomeAvatar` (implements `IHomeAvatarProvider`) | Integration staging; Home orchestration moved to `VertexFormHomeAvatar` September 27, runtime validation pending |
 | Avatar Studio provider: Body, Face, Colors, Outfits | `UmaAvatarConfigurationProvider`, `UmaAvatarCustomizer` | Integration staging |
 | Remote proximity hiding | `RemoteAvatarProximityHider` | Integration staging |
 | Load profiling | `AvatarLoadProfilerCapture`, `AvatarLoadProfileReportGenerator` | Integration staging |
@@ -325,10 +325,14 @@ the existing multiplayer VR synchronization path.
 ### Home and world hosts
 
 `HumanoidAvatarPresentationController` serves both Home and networked world rigs.
-`UmaHomeAvatar` and `UmaAvatarBridge` supply only host policy (first/third person, whether
-head-only visibility is safe), camera discovery, provider creation/refresh, authority, and
-persistence/network events. Construction and refresh remain provider/VertexForm concerns until a
-second provider proves the factory contract (Roadmap R2).
+`VertexFormHomeAvatar` now owns Home startup/readiness, saved-choice application, Classic
+construction, camera/visibility policy and scene-transition teardown. `UmaHomeAvatar` supplies
+the optional `IHomeAvatarProvider` build/instance/teardown adapter and a compatibility shim for
+existing combined prefabs. The host installer wires its own component for UMA-free installs.
+Eight Edit Mode fixture checks pass; runtime and true UMA-absence acceptance remain pending.
+`UmaAvatarBridge` still owns the world/network orchestration awaiting extraction. The D3 shared
+Home/network registry and D2 second-provider proof remain required; the current local Home
+seam accepts only one optional adapter and does not complete either item.
 
 ### Avatar Studio
 
@@ -417,39 +421,50 @@ and `PACKAGE-BOUNDARIES.md` (July 28) were established in the working tree.
 
 ## Packaging and distribution
 
-Decision, September 18, 2026:
+Decision, September 23, 2026 (supersedes the September 18 packaging sequence):
 
-1. **Developers build from source.** The development workflow is this repository plus a clean
-   UMA source checkout, pulling from both upstream repositories (VertexForm3D Master and UMA
-   master). `Tools/Sync-Uma.ps1` installs the pinned UMA revision; the two Editor menus install
-   the layers. When bumping the UMA pin, choose a released tag so developers and users share one
-   revision (v3.05 = `c9204fe4` today). After merging upstream VertexForm3D, regenerate the host
-   patch against the new stock versions of the five core scripts.
-2. **The GHA host layer is to be contributed upstream to VertexForm3D**: the five core-script
-   seams as real edits, `com.vertexform3d.gha`, the `Integration/VertexForm` adapters, the Avatar
-   Studio panel prefab and icons, and the prefab/Home wiring the host installer performs today.
-   Upstream ships these pre-wired, so the host installer and `VERTEXFORM_GHA_HOST` disappear for
-   users. Required evidence: a stock-only runtime pass showing Classic avatars, networking and
-   seating unchanged with no provider installed; zero UMA references; no new package dependencies
-   (all four the package declares are already in the 1.1.9 manifest); a reviewable diff.
-3. **`.unitypackage` files are strictly end-user deliverables** built from this repository by an
-   Editor export script with a fixed path list per deliverable. Users install UMA from the
-   official UMA release (`UMA3_f5.unitypackage`), then the GHA UMA provider package, then run
-   Install UMA Provider Layer. Until the host layer is upstream, a temporary host package is a
-   third download.
-4. **Both package folders move under `Assets/VertexForm3D/3rdPartyAssets/GHA`.** A
-   `.unitypackage` cannot carry `Packages/` content, and VertexForm3D's own Package Updater
-   delivers `.unitypackage` files, so even the upstream host layer must live under `Assets` to
-   reach users who update that way. The asmdefs move with the folders; the compile-time boundaries
-   are unchanged. The 14 hardcoded `Packages/com.vertexform3d.gha*/...` paths in the installer
-   and validation tools are updated; Unity drops the embedded records from `packages-lock.json`.
-5. **UPM is a later option, not the current plan.** `com.vertexform3d.gha.uma` could become a
-   UPM package once (a) the host contracts are upstream, (b) Roadmap R5 removes its direct
-   VertexForm references, and (c) Roadmap R7 makes the catalog a project asset so an immutable
-   package is never written to. Nothing in the current plan closes that route.
+1. **Separate responsibilities before splitting the development projects.** The generic host
+   contribution remains in this VertexForm3D fork. The UMA integration is developed in a separate
+   VertexForm3D working copy, on another branch in this fork or in a separately chosen repository.
+   Preserve the combined baseline and existing history; ordinary refactoring and removal commits
+   are sufficient. No history rewrite or standalone GHA UMA repository is required. A custom UMA
+   source fork is needed only when deliberately modifying UMA itself.
+2. **UMA is an independently installed, pinned dependency.** Preferred acquisition order is
+   Unity Asset Store, official GitHub release package, then a local source checkout. This is a
+   choice of installation route, not an automatic fallback chain. Support must be established
+   independently for each distribution's actual contents. The recorded source baseline is
+   v3.05 / `c9204fe4` plus documented destination-only shader repairs; Asset Store and release
+   package acceptance is still pending. The integration must not require Git for package users.
+3. **Keep the developer workflow.** `Tools/Sync-Uma.ps1`, revision checks and reproducible source
+   installs remain maintained alongside the user package route. Synchronization must leave the
+   source UMA checkout unchanged. Any release-package repair needs its own version-scoped,
+   reviewable installation path; do not silently apply the source overlay to a different artifact.
+4. **Contribute only the provider-neutral host to VertexForm3D.** This includes generic seams,
+   framework, VertexForm adapters, Classic support, shared Studio shell and host-owned wiring.
+   UMA construction, controls, catalog, thumbnails, Home/player adapters and installer contributions
+   stay outside the host deliverable. The September 27 source slice moves shared Home/save
+   orchestration to `VertexFormHomeAvatar`; runtime validation remains pending. A runtime provider registry
+   and minimal non-UMA Humanoid proof must establish that the host is genuinely independent.
+5. **Use explicit export manifests for end-user `.unitypackage` deliverables.** Relocate the
+   embedded package content under `Assets/VertexForm3D/3rdPartyAssets/GHA`, preserving existing
+   asset GUIDs and assembly names. Audit every hardcoded package path, assembly reference,
+   generated prefab and embedded-package record; the earlier count of 14 paths is not a fixed
+   scope. Keep project-owned catalog edits outside shipped defaults and preserve valid existing
+   UMA indexes. Never bundle UMA vendor content or machine/project credentials.
+6. **Validate before publishing.** A clean host-only project must work with no UMA code, assets,
+   symbols or serialized references. Review dependencies against the chosen upstream revision
+   rather than assuming the old four-dependency count is current. Independently validate all
+   supported UMA acquisition routes and the platform/network matrix. Until the host is accepted
+   upstream, a temporary host package is required; retire it and the user's host-install step only
+   when the selected upstream release demonstrably contains the host integration.
+7. **UPM is optional future work.** It is not required for this separation. The assembly boundary,
+   host contracts and project-owned catalog must be correct regardless of distribution format.
 
-The user-facing steps are in `GHA-getting-started.md`; the source workflow is in
-`GHA-developer-getting-started.md`.
+The detailed sequence, deliverables and acceptance gates are in
+[GHA-IMPLEMENTATION-PLAN.md](../../../GHA-IMPLEMENTATION-PLAN.md).
+The package-user guide is [GHA-getting-started.md](../../../GHA-getting-started.md);
+the maintained source workflow is [GHA-developer-getting-started.md](../../../GHA-developer-getting-started.md).
+Both describe their current validation limits.
 
 ## Roadmap
 
@@ -487,11 +502,20 @@ Not started. A provider that returns an already imported Humanoid prefab through
 lifecycle. `UmaAvatarPuppet` is currently the only implementation of the contract, so the
 construction factory generalization and the contract itself are unproven against a second body.
 
+September 23 clarification (plan D2): "static" means fixed appearance, not fixed movement or
+pose. Preserve animation, tracking and other supported embodiment behavior. Review the owner's
+[static-avatar discussion](codex://threads/01a0c97b-c915-7b41-8020-2c62d65371d2) when entering
+Phase 1. The implementation plan records two local RPM GLB candidates in the retired reference
+project; model-file availability is verified, Unity/GHA compatibility is not. Select and assess
+one local asset, implement only the minimal proof, and retain reusable code for the later complete
+static-avatar package. That full package does not gate completion of the UMA integration.
+
 ### R3: Provider registry for the mode byte
 
 Not started. `AvatarProviderSelection` persists a mode byte; nothing maps it to an adapter and
 payload codec. The Fusion host should select a provider through a registry rather than through
-`UmaAvatarBridge` knowing it is UMA. Depends on R2 for a second registrant.
+`UmaAvatarBridge` knowing it is UMA. Implement together with the minimal R2 proof provider before
+separating the projects; the existing UI-provider registry is not this runtime registry.
 
 ### R4: Proximity hiding through the instance contract
 
@@ -505,7 +529,8 @@ In progress since July; six classes remain in `Integration/UMA` plus the UMA ins
 their `PlayerNetworkSetup`, `AvatarInputConverter`, `ProjectManager`, `RoomManager`,
 `AvatarSelectionManager` and Home station dependencies with host contracts in
 `com.vertexform3d.gha` (implemented in `Integration/VertexForm`, which goes upstream). Exit
-criterion from `Integration/README.md`. Prerequisite for UPM delivery of the UMA package.
+criterion from `Integration/README.md`. Required before the host/UMA project split, regardless
+of whether UPM delivery is ever implemented.
 
 ### R6: Remote Vertex-compatible GLB provider
 
@@ -630,13 +655,16 @@ Status as of September 18, 2026. "Confirmed" means reproduced by the owner; the 
 were confirmed in the owner's own sessions, the earlier ones are recorded in the runbook or handoff.
 "Fixed, owner-verified on desktop" means the owner re-ran the repro in the Editor on the desktop
 platform after the fix; PC Link VR and second-client checks for those fixes are still part of R13.
-Fixed entries stay listed until the fix is committed.
+Fixed entries remain as regression evidence. The September 18 Home fixes are recorded in
+`8c19b5f7`; DNA and rebuild completion fixes are in `8a8c86ff`. Desktop owner verification is
+recorded below; it does not establish VR or multiplayer acceptance. Earlier "runtime check
+pending" wording in the incident descriptions refers to the initial implementation checkpoint.
 
 | ID | Status | Area | Description |
 |---|---|---|---|
 | BUG-1 | Fixed Sep 18, owner-verified on desktop | Home / Avatar Studio | Two avatars visible at once, mostly right after startup. Repro: the persisted choice from the previous run is UMA; enter Home; open Change Avatar and pick Classic. The Classic avatar spawns as the player but the persisted UMA avatar is not hidden. Switching back to UMA, saving, then choosing Classic again works. Cause (confirmed live, Sep 18, from the Console and a read-only scene inspection): two faults. (1) With no saved mode key, the hosts default to the catalog's default system (UMA) while the Studio defaulted to its first tab (Classic), so the Studio opened on Classic although the rig had built UMA. (2) Selecting the Classic tab, or pressing Previous/Next, had the stock provider switch `SuppressLegacyAvatars` off and run `AvatarSelectionManager.ActivateAvatarModelAt`, which instantiates the head/body both into the station preview and onto the rig's `CustomAvatar` (`headTransform`/`bodyTransform`) and reactivates that root. That put a Classic body on the rig next to the live UMA puppet without any save. After a UMA save, `UmaHomeAvatar.Refresh` hid the root again, which is why the sequence "UMA, save, Classic" worked. Fix applied Sep 18 (compiles with zero errors; runtime check pending): `ActivateAvatarModelAt` now refreshes only the platform preview while suppression is on (core seam, host patch regenerated); the stock provider no longer toggles suppression; `AvatarProviderSelection.DefaultMode` carries the host default so the Studio opens on the provider the host built. The rig's body still changes only on Save through `UmaHomeAvatar`. |
 | BUG-2 | Fixed Sep 18, owner-verified on desktop | Avatar Studio / UMA | DNA slider changes reach the preview but are not applied to the player avatar, and are not applied to either avatar after a restart, although the values persist. Colors and outfits save and restore correctly. Owner log from a save: `Saved — system 'UMA Avatar', race 0, 4 wardrobe, 2 dna, 3 color(s)`, followed by `[UmaHomeAvatar] Refresh — mode UMA`, a rebuild trace (`build=rebuild ... dna=2`) and `[UmaAvatarPuppet] Rebuilt avatar ... 2 dna`. So the recipe carries the two DNA values through save, persistence and rebuild; the fault is in applying them. Cause (confirmed in source and in the Editor, Sep 18): both `UmaAvatarPuppet.ApplyDna` and the customizer's `ApplyPreviewDna` stage the values in the DCA's `predefinedDNA`. UMA's `ApplyPredefinedDNA()` returns immediately for races with `useNewDNA`, and both `Human Male 3.0` and `Human Female 3.0` have `useNewDNA=True` (read from the RaceData assets through the Editor). So predefined DNA is never applied to these races on any build. Live slider moves work only because they go through `GetDNA()` setters plus a DNA-only `ForceUpdate`. Fix applied Sep 18 (compiles, runtime check pending): both paths now also write the values through the DNA setters, before a plain rebuild (UMA keeps the live new-DNA collection across it) or in the `CharacterUpdated` callback after a first or race-change build, followed by `ForceUpdate(true, false, false)`. `predefinedDNA` staging is kept for legacy-DNA races. |
-| BUG-3 | Confirmed Sep 18 | Locomotion | The walk animation sometimes does not play on the first load of Home; the avatar slides with idle playing. Not yet seen in the Editor with the Console open; trigger and recovery unknown. Suspects: `HumanoidLocomotionDriver` root-motion measurement not started for the first build, tracked-VR suppression left on for a desktop session, or the Animator reference not reacquired after the first UMA rebuild. Owner will capture Console output on the next occurrence. |
+| BUG-3 | Observed; owner-deferred Sep 23 | Locomotion | The walk animation sometimes does not play on the first load of Home; the avatar slides with idle playing. The owner has seen it and received another person's report, but cannot reliably reproduce it, so investigation is deferred until later. Trigger, recovery and cause remain unknown. Suspects: `HumanoidLocomotionDriver` root-motion measurement not started for the first build, tracked-VR suppression left on for a desktop session, or the Animator reference not reacquired after the first UMA rebuild. Retain the defect and capture Console evidence if it recurs; this is not a fix or locomotion acceptance. |
 | BUG-4 | Confirmed Aug 26 | Runtime | Repeated XR Affordance receiver and `AvatarInputConverter.Update` null-reference errors, pre-existing before Avatar Studio work; needs a separate gameplay-debug pass. |
 | BUG-5 | Confirmed Sep 5 | UMA content (upstream) | `Assets/UMA/SRP/ShaderGraphs/Materials/UMA_SG_Diffuse.shadergraph` fails JSON import on upstream master and develop. Not repaired; tracked under R8. |
 | BUG-6 | Confirmed Sep 7 | VertexForm content (upstream) | SketchUp importer assertions for `Assets/VertexForm3D/Example_Assets/Ocean Villa/Tree.skp`. Not a GHA defect; report upstream. |

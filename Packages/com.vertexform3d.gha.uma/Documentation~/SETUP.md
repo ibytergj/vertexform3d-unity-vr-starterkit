@@ -3,11 +3,60 @@
 **Reviewers: start with the [developer getting-started and testing guide](../../../GHA-developer-getting-started.md).**
 This document describes the maintainer contract and body-type authoring rules.
 
-Fresh-install status (September 7): the provider installer now automatically creates and
-populates a missing index from the default UMA content. The source-generated index stays
-excluded. The complete workflow still needs a fresh-checkout acceptance test.
+## Installation policy — September 23, 2026
 
-The package setup workflow must:
+The integration supports this intended preference order for obtaining UMA:
+
+1. Unity Asset Store: preferred user installation of an explicitly supported release.
+2. Official UMA GitHub release: downloadable Unity package for a supported release.
+3. Local UMA repository: maintained developer installation through `Tools/Sync-Uma.ps1`.
+
+Developers may deliberately choose the local route. The order does not authorize automatic
+downloads, switching sources, replacing an installed package, or substituting another version.
+Use one UMA installation per project. All routes converge on common installed-content validation
+and the same provider installer. Runtime code must not depend on the acquisition route.
+
+Implementation status: the local-source workflow and automatic creation of a missing Global
+Library exist. Full release compatibility checks and acceptance of the Asset Store and GitHub
+package artifacts remain pending. The source pin is not proof that those artifacts work.
+
+### Required compatibility preflight (planned)
+
+Before changing symbols or assets, validate the declared supported VertexForm3D/GHA host API,
+Unity/URP and UMA release, required assemblies/APIs, asset GUIDs, Humanoid races, T-poses/base
+recipes, wardrobe, colors and shader dependencies. Use an integration-owned compatibility record
+with evidence for each accepted artifact; do not assume all distributions of a version are identical.
+Record source/artifact metadata and checksum where available. For local source, also record the
+exact commit and repair profile. Unknown source provenance is recorded as unknown; a user-declared
+source is not proof of compatibility. Inadequate version/content evidence stops installation with
+an actionable explanation. Do not fabricate provenance or silently choose another recipe/version.
+
+The current candidate is the recorded UMA v3.05 source baseline below. Inspect release packages
+before deciding whether they need the Git-source shader overlay; repairs are never applied to a
+different distribution just because the version label matches. Any required user-package repair
+must be explicit, reversible and reproducible without a local UMA repository.
+
+### Integration ownership (planned)
+
+The GHA host remains in the upstream-facing VertexForm fork. GHA UMA integration code, exports
+and developer tools live in a designated VertexForm integration working copy after the pre-work.
+A standalone integration repository is not required. An optional custom UMA fork is only for
+changes to UMA itself. See the [implementation plan](../../../GHA-IMPLEMENTATION-PLAN.md).
+
+Phase 3 exports/tests GHA Host and GHA UMA Integration as separate packages. Neither contains
+UMA vendor content. A verified temporary host package may support an approved integration release
+before upstream acceptance; users of a validated upstream-integrated host omit that package.
+The temporary host installer currently requires Git for patch application; that requirement is
+separate from UMA acquisition and disappears for the upstream-integrated host route.
+
+The provider installer creates an editable project catalog from a template on first installation
+and preserves existing catalog IDs, references and saved choices on updates. This catalog change
+is still planned; the current installer uses the package catalog. Library creation already exists:
+create/populate only when missing; preserve existing indexes and reject an invalid occupied path.
+
+## Maintained local-source developer workflow
+
+For the explicitly selected local-repository route:
 
 1. Detect an existing compatible `Assets/UMA` installation.
 2. Use the owner's clean UMA checkout on `master`, pinned to
@@ -30,8 +79,9 @@ The package setup workflow must:
 6. Validate required races, wardrobe recipes, materials, and the GHA UMA catalog.
 7. Never modify or vendor the source UMA repository.
 
-The current `Tools/Sync-Uma.ps1` remains the migration reference until this workflow is implemented
-as cross-platform Unity Editor tooling.
+`Tools/Sync-Uma.ps1` remains a maintained developer workflow after package installation is
+supported. It is not required for Asset Store or GitHub package users. Cross-platform developer
+tooling is separate future work; it does not retire this script.
 
 On this workstation the source is `E:/src/Unity/6000.3/UMA`. Preview with
 `./Tools/Sync-Uma.ps1 -ReplaceExisting -WhatIf`, then run the same command without
@@ -54,7 +104,7 @@ The upgrade is not yet an accepted rendering baseline. See the migration runbook
 
 ## Project integration sequence
 
-After installing and validating the compatible UMA checkout:
+After installing and validating compatible UMA content from the selected route:
 
 **Before running the integration tools, rebuild an existing UMA Global Library.** Close
 **UMA > Global Library**, open **UMA > Global Library Maintenance**, and, if the Asset Index

@@ -1,4 +1,165 @@
-# VertexForm3D GHA Session Handoff — 2026-08-25
+# VertexForm3D GHA Session Handoff — updated October 1, 2026
+
+## Current continuation instructions
+
+Read `AGENTS.md`, this current section, `GHA-MIGRATION-RUNBOOK.md` (controlling status/evidence),
+then `GHA-IMPLEMENTATION-PLAN.md` (sequence and stable item IDs). The filename is retained for
+existing links. The August 25 snapshot below is historical and is superseded wherever it conflicts
+with this section or the current runbook.
+
+**Owner decision: further E3 / R9 / BUG-9 performance investigation and optimization is deferred
+until after P5-4, the UMA 3.1 upgrade.** Preserve the smaller-index improvement and evidence;
+resume the separation/lifecycle work on the current pinned UMA version. Do not start another
+profiling, async-loading or texture-optimization pass now. UMA 3.1 may change the result but is
+not assumed to fix the remaining stalls. The upgrade remains after the current-version separation
+and before additional testers or public release, followed by performance reassessment.
+
+| Item | Current state / remaining work |
+| --- | --- |
+| Plan | Six phases (0–5), 46 parent items; original IDs retained. Phases 0–3 and 5 plan content approved; Phase 4 conditionally accepted. Re-review each upcoming phase when its predecessor is complete. Plan approval is not implementation acceptance. |
+| Phase 0 / C2 | Bounded Desktop baseline recorded. Local implementation and documentation checkpoints authorized October 1; applicable acceptance/inventory gaps remain. Do not mark the entire phase complete or treat a checkpoint as Phase 4 commit separation. |
+| D1 | Home/Classic host lifecycle extracted into `VertexFormHomeAvatar`, with `IHomeAvatarProvider` and optional UMA build adapter. Compilation, eight isolated Edit Mode checks and bounded Desktop Home construction passed. Full Classic/UMA absence, Home/world/return, network and VR acceptance remain incomplete. |
+| D2 | One imported Humanoid avatar with fixed appearance is still the contract proof; normal animation/tracking required. Revisit the linked static-avatar discussion: `codex://threads/01a0c97b-c915-7b41-8020-2c62d65371d2`. The full static-avatar plugin remains separate scope. |
+| Phase 3 | Export and clean-install test both GHA and UMA packages; current experimental source presence is not package acceptance. |
+| A4 / A5 | Pointer-registration errors and remaining VR readiness/body-visibility acceptance remain open. Arms intersecting torso (A5.1) and eye/body alignment too far back (A5.2) remain later work. BUG-3 walking investigation remains owner-deferred. |
+| E3 / P5-4 | Smaller index remains a local experiment. Further performance work waits until after the reviewed UMA 3.1 upgrade; required functional and release/platform checks are not waived. |
+| Git | Owner explicitly authorized local commits on the current branch at session close. Implementation checkpoint: `1e0cec7d`; this handoff accompanies the documentation checkpoint. No push authorized or performed. Credentials, generated/vendor state and unrelated work remain outside these commits. |
+
+## Current environment and last verified state
+
+| Field | Recorded value |
+| --- | --- |
+| Continuation checkout | `E:\src\Unity\6000.3\vertexform3d-unity-vr-starterkit-GHA` |
+| Branch / checkpoints | `Generic-Humanoid-Avatars`; pre-session base `8c19b5f773985b71045df92337fc107595512d56`, implementation checkpoint `1e0cec7d`, followed by the documentation checkpoint containing this handoff. Use `git log` for the final HEAD. Other local changes remain outside the checkpoint. |
+| Unity | `6000.3.11f1` (`3000ef702840`) |
+| UMA source | `E:\src\Unity\6000.3\UMA`, pinned `c9204fe475b334162617da5ca923afcc6050e01e`; sync also needs reviewed shader-repair objects at `f4edf41ba1017b4a745fd1ba7286824332652b7d` |
+| Tooling | Unity standalone CLI `1.0.0-beta.6`; project Pipeline `0.6.0-exp.1`. Preserve manifest/lock and embedded GHA/UMA package records; do not force-install tooling. |
+| Last verified Editor state | Original project, stopped in LoginScene, Desktop / StandaloneWindows64; owner disabled XR startup for Windows and MetaQuest. Profiler off, zero compilation errors after temporary helpers were removed. This is a recorded state, not a guarantee after transfer/reopening. |
+| Historical comparison | Closed worktree at `C:\Users\Blender\.codex\worktrees\september-24-avatar-baseline\vertexform3d-unity-vr-starterkit-GHA`; used for tests/reconstruction, not ongoing implementation. Owner directed recreating it on the destination if needed. Preserve its test evidence, not the checkout; do not copy its linked `.git` file as a standalone repository. |
+
+CLI inspection timed out during this investigation, so exact-project AnkleBreaker discovery was
+used for the missing inspection. Rediscover connections on the destination; never copy or expose
+Pipeline connection descriptors/tokens. Project paths in instructions must be reviewed for the
+destination location before using tools. Follow the owner's Play Mode approval requirements.
+
+## Preserved improvement and limits
+
+`Tools/CreateCatalogScopedUmaIndex.cs` creates a new project index from both races and all 24
+current UI wardrobe choices and their dependencies. The original full vendor index and catalog
+were preserved. The experiment created 100 persistent entries, with 468 dependency paths including
+122 textures, versus 513 records (508 persistent) and 464 texture paths in the original full index.
+The generated local asset is `Assets/UMAProjectData/Resources/AssetIndexerProject.asset`.
+
+| Same-project fresh-Editor measurement | Full index | Scoped index |
+| --- | --- | --- |
+| DCA initialized to BuildBegun | 5.566 s | 0.558 s |
+| Home START to FINISH | 7.190 s | 6.474 s |
+| Largest observed Home frame (`unscaledDeltaTime`) | 6.927 s | 1.921 s |
+
+This was one pair with no OS/GPU cache flush, not a statistical benchmark or headset-build test.
+The 24 choices are recipes referencing meshes, materials and textures for both races; reducing
+recipe count does not remove all avatar construction/rendering cost. The remaining scoped-run
+delay has not been fully attributed. Earlier full-index profiles showed substantial synchronous
+asset reads and GPU texture uploads; do not assume those fully explain the scoped run.
+
+Thirty-one fresh construction cases passed (male base plus 17 compatible choices; female base
+plus 12 compatible choices). Checks covered readiness, a Humanoid Animator, nonempty meshes,
+assigned wardrobe and no errors. They did not cover every visual/material combination, network,
+VR or device acceptance. The saved recipe was unchanged. Temporary test components were removed;
+their source and results are retained privately under Logs.
+
+No background streaming is enabled. The full index still exists under Resources, so the experiment
+does not establish a smaller build or final installer/index ownership. Do not overwrite the
+scoped index with a generic full-library rebuild. The historical ~1.2 s measurement covered avatar
+build, with a separate visibility delay; later repeat/cache/storage conditions differed. A complete
+explanation or exact reproduction of that historical timing has not been established.
+
+## Machine-transfer checklist
+
+Paths below are relative to the continuation checkout unless absolute. Keep private material out
+of the public repository. The inventory is a preservation aid, not an approved staging list.
+
+| Transfer item | What to preserve / how to use it |
+| --- | --- |
+| Reviewed project source and Unity metadata | Carry the local implementation and documentation commits, plus the separately listed uncommitted files needed for the local environment, preserving `.meta` files. The runtime files below are in `1e0cec7d`; a clone from the unchanged remote will omit them. Preserve unrelated work separately for owner review. |
+| Git continuity | Transfer a complete standalone repository/history backup or a Git bundle containing the local commits; a remote clone alone cannot recover unpushed commits. Transfer uncommitted/new files separately as well. A bundle does not contain them. No bundle or push was created by this handoff. |
+| Pinned UMA source / repair objects | Retain access to the sibling UMA repository and both exact commits above, or transfer it privately. Follow the developer guide and `Tools/Sync-Uma.ps1` with the destination paths to reconstruct the ignored vendor installation. Do not upgrade during transfer. Preserve any other required licensed/ignored dependencies privately. |
+| Generated UMA indexes | Rebuild locally, including the scoped experiment if retaining its behavior. Do not copy or merge either generated index from this machine. See the prerequisites below; normal installer regeneration alone creates a full index and does not reproduce the experiment. |
+| Private application configuration | Preserve or recreate `Assets/Photon/Fusion/Resources/PhotonAppSettings.asset` privately. It currently appears as a modified tracked file: ignoring a path does not remove an already tracked file from Git. Exclude its credential-bearing contents from public commits. Review other local configuration such as `.claude/settings.local.json` privately rather than copying it into a public commit. |
+| Saved avatar/preferences, optional | Private snapshots exist at `Logs/September24Worktree-20261001/editor-prefs-before.reg` and `editor-prefs-after.reg`. Review before using on Windows; they contain project preferences, not just an avatar recipe. Do not blindly restore device calibration. Recalibrate on the new headset/machine as needed. |
+| Latest experiment evidence | Copy `Logs/ScopedUmaIndex-20261001/` and `Logs/UMA-Streaming/` privately, including `content-plan-20261001-153836.json`. These preserve the index reports, timing logs and construction results. |
+| Historical comparison evidence | Copy `Logs/September24Worktree-20261001/`, `Logs/HomeAB-20261001/`, and `Logs/VRFirstLoad-20261001/` privately. The worktree evidence folder includes private preference exports; do not publish the folder wholesale. |
+| Raw profiles | Copy only `Library/GHAProfiles/` from Library if retaining the performance recordings (about 714 MB). These are evidence for the post-3.1 revisit; the rest of Library can be regenerated. |
+| Baseline/earlier evidence | Preserve `Logs/SeparationBaseline-20260923/`, `Logs/Phase1Home-20260927/`, and `Logs/MetaOpenXR-Fix-2026-09-04/` if retaining the earlier acceptance and slow-load history. |
+| Working-tree inventory | `Logs/SessionHandoff-20261001/working-tree-transfer-inventory.csv` preserves the pre-commit inventory; `remaining-local-files.csv` lists files still outside the checkpoints; `committed-files.txt` lists checkpoint paths and `checkpoint-commits.txt` records revisions. `staged-files-before-handoff.txt` records the original staged scope. These lists do not back up file contents. |
+| Local agent instructions, optional | Retain custom workflow instructions at `C:\Users\Blender\.agents\skills\unity-cli\` and `C:\Users\Blender\.codex\skills\unity-mcp-skill\` if needed on the destination; review their machine-specific paths. Repository handoff documents are the continuation record. Reinstall required tooling rather than transferring authentication or connection-token files. |
+| Reference repositories, optional | Retain access to frozen `QuantumVertex`, the clean VertexForm3D reference and the RPM fixture repository recorded under D2. These support traceability and later proof-provider work; the historical worktree is not required to resume current development. |
+
+Do not transfer ordinary `Library`, `Temp`, `obj`, generated solution/project files or connection
+descriptors as required source. `Library/GHAProfiles` is the explicit evidence exception. Private
+preference/configuration backups must remain private. No backup archive was created in this pass.
+
+### Implementation checkpoint and remaining local configuration
+
+The following implementation/tooling source is preserved in `1e0cec7d`. The last row distinguishes
+configuration retained outside that commit:
+
+| Files | Role |
+| --- | --- |
+| `Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/VertexForm/Runtime/VertexFormHomeAvatar.cs` and `.meta` (new) | Extracted host lifecycle |
+| `Packages/com.vertexform3d.gha/Runtime/Core/IHomeAvatarProvider.cs` and `.meta` (new) | Provider contract |
+| `Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/UMA/Runtime/UmaHomeAvatar.cs` | UMA Home adapter |
+| `Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/UMA/UI/UmaAvatarCustomizer.cs` | Customizer integration |
+| `Assets/VertexForm3D/3rdPartyAssets/GHA/Installer/Editor/GhaUmaAssetInstaller.cs` and `GhaVertexFormAssetInstaller.cs` in the same folder | Installer wiring |
+| `Assets/VertexForm3D/Scripts/Utility/SceneLoader.cs` | Desktop/XR startup handling |
+| `Tools/ValidateGhaHomeLifecycle.cs` (new) | Lifecycle checks |
+| `Tools/CreateCatalogScopedUmaIndex.cs` (new) | Rebuild recipe for the scoped-index experiment |
+| `Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/UMA/Editor/GhaOneShotAvatarProfile.cs` and `.meta` (new) | Diagnostic capture source; retain for later performance work |
+| `.gitignore` | Checkpoint includes the `.utmp/` generated-state exclusion |
+| `Packages/manifest.json`, `Packages/packages-lock.json`, relevant `ProjectSettings` and platform/XR assets | Still local and listed in `remaining-local-files.csv`; transfer privately if preserving this exact development environment, then review separately. These include tooling and owner Desktop/XR choices. Do not blanket-stage all modified assets. |
+
+The private inventory includes additional user/editor changes; this table is not an exhaustive
+commit list. In particular, lighting/reflection metadata, Ocean Villa content, local settings and
+generated files must not silently enter a GHA documentation or runtime commit.
+
+The companion documentation checkpoint covers these 12 paths: `GHA-IMPLEMENTATION-PLAN.md`,
+`GHA-MIGRATION-RUNBOOK.md`, `GHA-SEPARATION-BASELINE-2026-09-23.md`, this handoff,
+`GHA-developer-getting-started.md`, `GHA-getting-started.md`, `README.md`,
+`Assets/VertexForm3D/3rdPartyAssets/GHA/Integration/README.md`,
+`Packages/com.vertexform3d.gha.uma/Documentation~/SETUP.md`,
+`Packages/com.vertexform3d.gha.uma/README.md`,
+`Packages/com.vertexform3d.gha/Documentation~/ARCHITECTURE.md`, and
+`Packages/com.vertexform3d.gha/Documentation~/PACKAGE-BOUNDARIES.md`.
+
+### Scoped-index reconstruction caveat
+
+The tool is an Editor-eval C# method body, not a standalone program. It requires a full index
+rebuilt from destination assets at `Assets/UMA/InternalDataStore/InGame/Resources/AssetIndexer.asset`
+and no existing `Assets/UMAProjectData/Resources/AssetIndexerProject.asset`; it refuses to replace
+an existing project index. The normal provider installer can instead create the full index at
+the project path. Therefore **do not blindly run the tool after the normal installer**.
+
+On the destination, inspect the generated layout first and use Unity asset operations to make
+the locally rebuilt full source index available at the tool's expected path, preserving any
+existing index before attempting creation. Reconcile any path differences explicitly; never copy
+the old generated index, overwrite the current curated index, or manipulate serialized asset
+contents by hand. Validate the catalog/dependencies and both races after reconstruction. The
+fresh-machine reconstruction sequence has not been tested; retain this as a setup prerequisite,
+not a claim that the local experiment is already portable. This is preservation/setup work,
+not authorization to restart performance optimization before UMA 3.1.
+
+## Suggested next-session instruction
+
+Read AGENTS.md, the current section of GHA-SESSION-HANDOFF-2026-08-25.md, the controlling
+GHA-MIGRATION-RUNBOOK.md and GHA-IMPLEMENTATION-PLAN.md. Verify the transferred source and pinned
+dependencies before changing anything. Resume D1 separation/lifecycle acceptance within the
+agreed phase review process. Preserve the scoped-index experiment; E3 / R9 / BUG-9 performance
+work is deferred until after P5-4 UMA 3.1. Keep the existing phase/item identifiers. Do not
+stage, commit or push without the owner's exact-scope approval; follow Play Mode approval rules.
+
+---
+
+## Historical August 25 snapshot — superseded for current status
 
 ## Start here
 

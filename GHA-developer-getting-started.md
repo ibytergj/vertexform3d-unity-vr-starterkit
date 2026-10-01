@@ -1,12 +1,52 @@
 # Developer getting started: building and testing the GHA / UMA integration from source
 
+**Continuing the October 1 development session on another machine:** read the
+[current handoff and transfer checklist](GHA-SESSION-HANDOFF-2026-08-25.md) first. A clone or a
+documentation-only commit does not include the implementation checkpoint `1e0cec7d`, private
+evidence or generated scoped UMA index. Transfer both local checkpoints and required local files.
+Rebuild generated index state locally; the scoped-index
+tool has source-path prerequisites described in the handoff. Further performance work is
+deferred until after the planned UMA 3.1 upgrade (P5-4).
+
 For Vertex Form3D maintainers and contributors working on the `Generic-Humanoid-Avatars`
 branch: people who want to enhance the GHA host adapter, extend the UMA integration, or review
 the branch from a source clone.
 
 If you only want to add GHA and UMA avatars to an existing Vertex Form3D project, use the
 [user getting-started guide](GHA-getting-started.md) instead. It installs the same integration
-from downloadable packages and does not require a UMA source clone or the sync script.
+from downloadable packages and does not require a UMA source clone or the sync script once
+that draft installation flow has been validated and published.
+
+## Developer and user routes
+
+UMA acquisition preference is **Unity Asset Store**, **official GitHub release package**, then
+**local repository**. This guide deliberately covers the third route because it is the maintained
+script-based development workflow. `Tools/Sync-Uma.ps1`, pin checks, dry run and replacement
+backups remain part of development after the integration package is published.
+
+Do not combine a package import and source sync in one installation. When testing the first two
+routes, use separate clean VertexForm test copies and the draft user guide; record the artifact
+identity/version as well as the integration and host revisions. Packages still require separate
+validation: matching a release label does not establish matching content or shader repairs.
+Common release/content validation for all sources is planned in the
+[UMA setup contract](Packages/com.vertexform3d.gha.uma/Documentation~/SETUP.md).
+
+The combined `Generic-Humanoid-Avatars` branch is the current development baseline. After the
+pre-work in the [implementation plan](GHA-IMPLEMENTATION-PLAN.md), the host contribution remains
+in this fork and UMA integration development uses a designated VertexForm working copy. Its code
+and scripts produce the integration package; an optional custom UMA fork is needed only to modify
+UMA itself. Repository/branch names for that split are not assigned yet.
+
+Current plan review: Phases 0–3 and 5 approved, Phase 4 conditionally accepted; re-review the next
+phase before starting it. The [Phase 0 baseline and closure checklist](GHA-SEPARATION-BASELINE-2026-09-23.md#phase-0-completion-checklist-after-owner-plan-review)
+records completed Desktop evidence and the remaining PC Link/owner-review steps. Plan approval
+does not establish runtime acceptance or authorize commits/publication.
+
+Phase 1 includes a minimal fixed-appearance (static) Humanoid proof provider. Review the related
+discussion and existing RPM asset candidates linked under D2 in the plan before implementation.
+The complete static-avatar package remains later work; animation and tracking are still required.
+
+## Current source-clone procedure
 
 **Review instructions — September 8, 2026.**
 Follow the steps below from a fresh clone of the review branch. Record the downloaded commit
@@ -236,10 +276,22 @@ No catalog edits are needed for this review.
 
 Start Play Mode from **LoginScene**, use its connection action, then open **Change Avatar** in
 Home. Do not start directly in Home and treat missing initialization as a UMA failure.
+For headset-free testing, select **Desktop** in Platform and Settings and disable **Initialize XR
+on Startup** on the Standalone/Windows XR settings tab. The current SceneLoader skips its manual
+XR startup and scene-transition reinitialization for Desktop-style presentation. For later PC
+Link testing, restore **VR** and the Standalone startup checkbox before starting from LoginScene.
 Test Home first: remote Addressables/world-download configuration is a separate prerequisite for
 other worlds and should not obscure the initial avatar check.
 
 ## 7. Desktop smoke-test checklist
+
+For the September 27 D1 source slice, run `Tools/ValidateGhaHomeLifecycle.cs` with Unity CLI
+`run_script`, entry `ValidateGhaHomeLifecycle.Main`, in idle Edit Mode. It uses disposable
+fixtures and restores preferences; it does not save prefabs or enter Play Mode. Eight checks
+cover Home Save/apply without a UMA adapter, preview separation, teardown, missing-provider
+fallback and host wiring. These do not replace focused runtime or true package-absence tests.
+Existing combined prefabs use a compatibility shim; install/update the host layer before
+rerunning the UMA installer so the host owns its serialized Home component.
 
 Record each result separately, including the first cold load and a repeated load.
 

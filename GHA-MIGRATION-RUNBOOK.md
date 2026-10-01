@@ -1,6 +1,6 @@
 # QuantumVertex to Generic Humanoid Avatars Migration Runbook
 
-Status date: 2026-09-07
+Planning revision: 2026-10-01 (session close; performance deferred until after UMA 3.1); dated verification entries below retain their original scope.
 Migration source: `E:\src\Unity\6000.3\QuantumVertex`  
 Migration target: `E:\src\Unity\6000.3\vertexform3d-unity-vr-starterkit-GHA`
 
@@ -88,6 +88,777 @@ slice.
 
 ## Current repository truth
 
+### October 1 session-close decision — controlling next-work direction
+
+The owner accepted the improvement from the smaller index and directed that **further performance
+work wait until after the UMA 3.1 upgrade**. E3 / R9 / BUG-9 is therefore **DEFERRED**, not fixed
+or accepted. This decision supersedes immediate profiling/loading recommendations in the dated
+investigation entries below. Do not initiate more performance captures, background loading,
+Addressables changes or index optimization before P5-4.
+
+| Reference | Current disposition | Next action |
+| --- | --- | --- |
+| D1 / Phase 1 | Source extraction and bounded Desktop Home construction verified; full acceptance incomplete | Resume separation/lifecycle work on the existing pinned UMA version. Preserve phase review boundaries and the original tracking IDs. |
+| E3 / R9 / BUG-9 | Deferred until after P5-4 | Preserve the scoped index locally and the experiment source/evidence; reassess performance after upgrading. UMA 3.1 is not assumed to cure the remaining stalls. |
+| P5-4 | Final UMA 3.1 upgrade remains pending | Finish the current-version separation, review the chosen released patch, upgrade and run required regressions before additional testers/public release. |
+| C2 / handoff | Owner authorized local checkpoints on the current branch October 1 | Implementation saved as `1e0cec7d`; companion documentation checkpoint replaces the earlier 11-file staged snapshot. See handoff for 14 implementation/tooling files, 12 documents and excluded local files. No push authorized or performed. |
+
+The smaller index improved the measured initial interval from 5.57 s to 0.56 s, but the single
+fresh-Editor pair still measured 7.19 s versus 6.47 s to Home avatar completion. The 24 wardrobe
+choices reference a larger dependency set, including 122 texture paths and both races; they are
+not 24 independent small assets. Remaining generation/rendering cost in the scoped run is not
+fully attributed. Do not generalize the pair to VR/device performance or promise background work
+will be stall-free.
+
+The current [session handoff](GHA-SESSION-HANDOFF-2026-08-25.md) contains the itemized machine-transfer
+checklist, source inventory and setup caveats. It supersedes the August 25 environment snapshot.
+The original project is the continuation checkout; the September 24 comparison worktree is
+historical evidence. No further Unity execution is needed for this documentation closeout.
+
+### October 1 VR first-load investigation — 24.6 s Home build, 0.60 s world build
+
+#### Catalog-scoped index experiment — October 1, 15:37–15:45 UTC
+
+Owner authorized trying the resource list limited to current UI choices and asked whether
+additional content could load in the background after avatar appearance. A slimmer project-owned
+index is now active locally. **This is a synchronous-loading experiment, not activated streaming
+or a release-ready build configuration.** No clothing choice or saved recipe was removed.
+
+`Tools/CreateCatalogScopedUmaIndex.cs` rebuilds fresh entries from the current catalog's races,
+wardrobe recipes, named slot/overlay/LOD dependencies and serialized dependency closure, using
+Unity/UMA APIs. It creates `Assets/UMAProjectData/Resources/AssetIndexerProject.asset` and refuses
+to replace an existing project index. It does not clone the generated vendor index. The full
+vendor index and catalog remain byte-identical to their before-test hashes. The generated
+project index is ignored by Git; the reproducible creation script is new and unstaged.
+
+| Scope | Full index | Catalog-scoped index |
+| --- | ---: | ---: |
+| Persisted records when created | 513 (508 persistent references) | 100 |
+| Dependency paths | 1,377 | 468 |
+| Texture dependency paths | 464 | 122 |
+| UI choices retained | Both races, 24 wardrobe entries | Both races, all 24 wardrobe entries |
+
+Both timed runs used the original E: project, today's runtime code, Unity 6000.3.11f1,
+Desktop/StandaloneWindows64, the same saved male recipe and the same temporary Editor-only
+test helper. Each began after restarting Unity, with zero loaded indexes before normal
+Connect Anonymously -> HomeScene. No binary profiling or Editor query ran during construction.
+The machine/OS caches were not flushed; these are two measured runs, not a statistical benchmark.
+
+| Measured interval | Full, fresh Editor | Scoped, fresh Editor |
+| --- | ---: | ---: |
+| DCA initialized -> build begun | 5.5661 s | 0.5581 s |
+| Home avatar START -> FINISH | 7.1900 s | 6.4740 s |
+| Largest observed Home-loading frame | 6.9267 s | 1.9210 s |
+
+Frame values are observed `Time.unscaledDeltaTime` through three frames after Home FINISH,
+not a raw-profiler main-thread attribution or headset measurement. The scoped run's later
+generation interval was longer, so total ready time improved only modestly despite the much
+shorter initial load. Significant stalls remain; do not claim a smooth or 1-second cold load.
+Only the project index was resident. Matching loaded textures measured 691,340,056 bytes
+(119 Texture2D objects), versus 1,281,504,424 bytes in the earlier full-index residency audit;
+these are Editor memory estimates. Five additional baked slot records were transient at runtime.
+
+Runtime coverage passed 31 cases: male base plus 17 compatible wardrobe choices, female base
+plus 12 compatible choices (including shared hair). Each built a fresh puppet, checked readiness,
+Humanoid Animator, nonempty renderer meshes, assigned wardrobe and absence of errors. This
+tests construction, not every outfit combination, visual/material correctness, networking,
+VR, or standalone platforms. The saved recipe was unchanged; all test objects were removed.
+
+Background-loading direction: first load the selected avatar, then queue useful supported
+outfits/other-player assets at low priority with bounded concurrency and memory retention.
+Do not automatically load unused vendor content simply because it is installed. UMA's existing
+Addressables preload uses race and assigned recipe labels, but enabling it needs local bundles,
+reference-graph ownership and build validation. Async reads still require main-thread integration
+and GPU work. Unity's background-loading priority applies only to built players, so Editor tests
+cannot prove that background work will be imperceptible:
+https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Application-backgroundLoadingPriority.html
+
+The full Resources index still exists for preservation and would remain eligible for inclusion
+in a player build. Resolve authoring/runtime index ownership and build duplication before release.
+A generic UMA library rebuild can repopulate a curated index; this experiment does not yet add
+an automatic policy that regenerates the curated set when the catalog changes. The creation
+script and its validation must become an intentional installer/build step before broader use.
+
+Evidence: `Logs/ScopedUmaIndex-20261001/` contains both timing logs, Editor logs, creation audit,
+residency, 31-case validation and helper source. Temporary helper scripts/metas were removed
+through Unity. The project is stopped at LoginScene with profiling disabled. Current runtime
+source, vendor index, catalog and saved recipe are preserved. No new staging, commit or push.
+CLI inspection again timed out; fresh AnkleBreaker discovery selected the exact GHA project.
+All four required VertexForm documentation URLs were retried but remained inaccessible.
+
+#### Cause isolation — October 1, 15:17–15:25 UTC
+
+**The large pre-build delay is synchronous loading of UMA's index and its directly referenced
+assets, not slow lookup-table initialization.** Normal application flow remains Connect
+Anonymously in LoginScene -> HomeScene -> avatar startup. The test logs confirm zero loaded
+indexes before Connect and avatar timing events in HomeScene. “Login test” describes the entry
+path, not an avatar in LoginScene.
+
+The source path is `DynamicCharacterAvatar.Start` -> `BuildFromComponentSettings` ->
+`SetActiveRace` -> the `RaceSetter.data` getter -> `SetRaceData` -> `UMAAssetIndexer.Instance`.
+The getter consults the index even though the host already supplied RaceData. In the Editor,
+`LoadPreferredIndexer` uses synchronous AssetDatabase loading; the player fallback uses
+synchronous Resources loading. Each `AssetItem._SerializedItem` is a direct object reference.
+Resolving this global index therefore pulls in much more than the selected avatar's outfit.
+
+A temporary Editor-only probe intercepted HomeScene's scene-loaded event before avatar Start.
+It loaded the existing index, measured singleton initialization separately, then let the
+unchanged Home/runtime code continue. No avatar existed at interception; no index was loaded.
+The test stayed on the original E: project, current code, current index, same saved recipe,
+Desktop/Windows, with no binary profiler or Editor queries during construction.
+
+| Measured step | Time / evidence |
+| --- | --- |
+| Load the index asset and its references, in HomeScene before avatar Start | 5,630.154 ms |
+| Obtain the singleton and initialize UMA after that load | 18.907 ms; same index object |
+| Normal Home avatar START -> FINISH after the probe | 1,421.6 ms; SUCCESS, zero errors, two renderers |
+| DCA initialized -> build begun with the index already initialized | 13.8 ms, versus seconds in unprimed runs |
+| Separate index-only load after an Editor restart, stopped Edit Mode | 4,379.614 ms; loaded Texture2D count increased by 242 |
+
+This deliberately moves the loading cost ahead of the avatar timer; **it is causal isolation,
+not a performance fix or a 1.42-second total Home load**. The earlier profiler captures still
+establish substantial render-thread texture-upload stalls and main-thread waits in slower
+runs. Do not add overlapping thread timings. A normal current-code control after unloading
+unused assets took 3.8588 s in the already-used Editor. An Edit-Mode preload attempt took
+4.3081 s in Home but had zero indexes left before Connect: entering Play unloaded the index,
+so that attempt is explicitly not a valid preloaded control.
+
+The read-only dependency audit found 513 index records / 508 persistent references, 1,377
+dependency paths and 464 texture asset paths. Of the loaded Texture2D objects matching that
+dependency set, 284 accounted for 1,281,504,424 bytes in Unity's runtime-memory estimate.
+Five female 2048x2048 RGBA32 readable normal maps alone accounted for 223,700,680 bytes even
+while investigating a male avatar. These are Editor residency estimates, not device VRAM or
+standalone measurements; the dependency texture count is not the number of resident textures.
+The 20 project-wide index entries absent from the historical rebuild add 76 unique dependency
+paths but only two texture source files (260,663 bytes combined). The large UMA texture set is
+shared, so those extra entries do not explain it. Other dependency costs are not ruled out.
+
+Disk inspection confirms that C: is a WD_BLACK SN850X NVMe SSD and E: a Samsung 870 QVO SATA
+SSD. That is an actual confound in the earlier worktree comparison, not proof of the cause of
+its 7.3-second gap. OS cache, GPU state and exact September 24 cache state remain uncontrolled.
+The same-project Home-code A/B did not reproduce a consistent extraction penalty; it does not
+exclude every possible regression. Bulk index loading and texture uploads are now established
+costs; exact attribution of every first-load difference remains open.
+
+E3's corrective direction is a scoped runtime content/index graph and supported asynchronous
+loading for the selected recipe, without hard references from the global Resources index or
+catalog retaining all streamed content. The existing September 7 dry run identified a
+100-record candidate for both catalog races and 24 wardrobe options; that remains an audit,
+not validated pruning or an activated streaming implementation. Merely moving the synchronous
+load into LoginScene, or making one API asynchronous while retaining the full reference graph,
+does not address the excessive content load. Validate all customization options and device
+first launch/reload/restart before calling a fix complete.
+
+Evidence is in `Logs/September24Worktree-20261001/`: `home-index-isolation.txt`,
+`index-alone-fresh-editor.json`, `current-dependency-audit.json`, `index-texture-residency.json`,
+the two control logs, `HomeIndexIsolationTest.cs`, and `isolation-final-state.json`.
+The probe and its meta were removed from Assets through Unity after the test. The original
+project is stopped at LoginScene with profiling disabled. Guarded-file hashes differ only for
+this runbook and the implementation plan; the vendor index hash is unchanged. No persistent
+runtime, vendor/index, scene, prefab, package or settings change is part of this investigation.
+The pre-existing staged scope was preserved; nothing was staged, committed or pushed.
+
+#### Full historical-worktree Desktop tests — October 1, 14:14–14:30 UTC
+
+At the owner's request, created the attached worktree
+`C:/Users/Blender/.codex/worktrees/september-24-avatar-baseline/vertexform3d-unity-vr-starterkit-GHA`
+at `8c19b5f773985b71045df92337fc107595512d56`, the commit recorded in the September 24 baseline.
+This checks out all tracked historical code, unlike the earlier single-file Home comparison.
+The owner closed today's project and explicitly authorized opening projects and automatic
+Desktop Play Mode testing. No commits, staging or pushes were authorized or performed.
+
+Preparation applied 73 settings/import/package files whose bytes match the September 23
+inventory. UMA was installed from pinned upstream `c9204fe4` with the recorded 12 shader fixes
+from `f4edf41ba`, using the checked-in sync script. Vendor comparison found only import-metadata
+differences, not changed runtime source/content. Local Photon configuration was copied privately
+for the test; its values and preference backups remain in ignored local evidence only.
+The full original working-tree files were preserved; no reset or stash was used.
+
+Both projects used Unity 6000.3.11f1, StandaloneWindows64, VertexForm Desktop, the same saved
+male UMA recipe (SHA-256 `223CA93931326A912644D62C4FD76C0AC4E4EE17F82819D9C09A55A78E8ACEAE`),
+and the same temporary Editor-only login/timing helper. Historical Standalone XR startup and
+loaders were disabled through Unity APIs because the old SceneLoader otherwise initializes XR
+even for Desktop. Today's Desktop gate already avoids that initialization. No headset was used.
+After imports/setup each Editor was restarted before the measured first Play. No binary profiler
+or Editor inspection ran during the avatar-build intervals. Normal timing logs were retained.
+
+| Condition | Historical worktree | Today's project |
+| --- | ---: | ---: |
+| First Home avatar after Editor restart | 6.4558 s | 13.7469 s |
+| Stop Play, then Login -> Home again in the same Editor process | 3.2765 s | 3.3710 s |
+| Reload Home directly while remaining in that Play session; fresh Home puppet | 0.4611 s | 0.4658 s |
+
+All six builds reported SUCCESS with zero errors during the recorded intervals and identical
+saved-recipe hashes. First Play had zero loaded indexes before login; the next Play had one.
+Same-Play reload is a separate diagnostic scene reload, not the full Login path. Both warm
+reloads log `build=initial` for the new puppet, so these are not just timing an existing renderer.
+The final current Home had one host, one puppet, two active/visible UMA renderers, no XR loader;
+the saved game screenshot also confirms the avatar is visible.
+
+**Finding:** both code versions retain very fast same-Play avatar construction. This supports
+runtime cache/state as an explanation for how a roughly 1.2-second historical build can coexist
+with much longer first loads, but does not prove the September 24 run had identical cache state.
+The September 24 loading substep was about 9 ms; the historical same-Play reload here took about
+2 ms for that substep. Stopping/restarting Play was slower than keeping the runtime alive in
+both versions. Do not conflate those two meanings of a warm load.
+
+**First-load gap remains OPEN.** Today's first load was approximately 7.3 s slower. Its DCA
+initialized-to-build-begun interval was 12.121 s versus 2.759 s in the worktree. This is evidence
+to preserve, not grounds to clear the regression or to attribute it to the separation code.
+This was not an exact recreation: the managed worktree is on C: and today's project is on E:;
+storage/cache conditions were not matched or flushed. Historical uncommitted state is only
+partially recoverable from hashes, and its generated index was not archived.
+
+The runbook forbids copying a generated index, so the historical worktree rebuilt one scoped to
+`Assets/UMA`: 488 persistent entries / 1,301 dependencies. Today's existing index, after leaving
+Play, has 513 records, 508 persistent references and five empty runtime-baked records. Its 488
+UMA entries are shared with the rebuilt index; it also includes 20 persistent entries elsewhere
+in the project (mostly Animator controllers, plus one SourceShaders material). The five extra
+live baked entries in the in-Play export are runtime-only, not an additional persistent-content
+delta. Today's index file hash is unchanged from before the earlier A/B work. The older
+493/488 audit was September 4 evidence, not a verified September 24/current index snapshot.
+Therefore equal persistent index content has NOT been established. A future first-load
+attribution test must match index contents and storage/cache conditions before comparing code.
+
+Evidence: `Logs/September24Worktree-20261001/` contains the six timing files, original-file hash
+inventory, historical overlays, vendor/index comparison lists, Editor logs and
+`current-desktop-home.png`. The temporary `HistoricalHomeTest.cs` source is retained there and
+in the isolated worktree for reproducibility; it was removed from today's Assets through Unity.
+Shared avatar/preferences values are unchanged; only four Unity session identifiers/counters
+changed through normal Editor/Play sessions. Preference backups are retained privately.
+Today’s original modified/untracked files matched their pre-test hashes before documentation
+updates. The original project is back on Desktop / Windows target at LoginScene, stopped;
+the historical Editor is closed. Keep the historical worktree attached for follow-up.
+
+Unity CLI successfully opened both projects. Its installed Pipeline 0.6.0 status commands still
+timed out after 30 s; freshly discovered AnkleBreaker endpoints were used for Editor operations
+(historical worktree 7890, original project 7892). No Pipeline/package upgrade was attempted.
+
+#### Historical regression review requested by the owner
+
+The owner recalls improving approximately 30-second loads to below ten seconds and is concerned
+the September 27 separation work reversed that improvement. Reviewed the earlier
+[Resume GHA avatar migration](codex://threads/01a03925-40c7-70f2-bdaf-9d9888d88eff) session,
+its August 25–September 23 history, retained timing evidence and the current source diff.
+Do not dismiss this concern because slow-load behavior also existed before the split.
+
+| Earlier observation | Evidence / qualification |
+| --- | --- |
+| September 4 Home ready in 7.720 and 8.291 s | `Logs/MetaOpenXR-Fix-2026-09-04/UMA-PERFORMANCE-BASELINE.md`; adjacent runs were 11.314/11.801 s, so performance varied before separation. |
+| September 4 profile: Home ready in 21.457 s, full captured frame 25.289 s | `UMA-PROFILE-FINDINGS.md`; includes an 18.46 s synchronous index load. Full-frame time and avatar-ready time are different measurements. |
+| September 7 review-project Home build about 8.3 s | Earlier session's installer-fix result at 23:37 UTC; explicitly said loading performance remained unresolved. Different project copy. |
+| September 24 Home builds 1.309 s and 1.176 s | `Logs/SeparationBaseline-20260923/pc-link-20260924-visibility-console.json`; first interval is earlier activity, second is the PC Link baseline. The PC Link body then remained hidden for approximately 11.9 s pending calibration. Neither is a controlled cold-process benchmark. |
+
+The reviewed earlier conversation confirms that the September 4/5 smaller-index and local
+asynchronous-loading work stopped at a feasibility audit; it explicitly reported no changed
+loading behavior. No activated streaming optimization was found to have been removed. This does
+not disprove other earlier improvements or the owner's remembered approximately 30-second run.
+
+The separation delta moves the existing Home XR wait, saved-avatar dispatch and presentation
+into `VertexFormHomeAvatar`; `UmaHomeAvatar` now creates its puppet lazily in BuildSavedAvatar
+rather than unconditionally in Start. For initial UMA, both still invoke the same puppet Build
+and UMA DCA Start path. Puppet Awake resolves host components and resets locomotion; no asset
+preload/cache was found there. `UmaAvatarPuppet`, the serialized Home prefab and UMA catalog
+match HEAD, and EditorSettings/QualitySettings match the September 23 pre-work hashes exactly.
+The customizer source delta only changes its missing-listener error text. These findings narrow
+the suspects but cannot rule out altered startup ordering or timing from the extraction.
+
+#### Controlled Home comparison completed October 1, 13:28–13:43 UTC
+
+The owner authorized proceeding, including the previously authorized stop/start actions. Compared
+the current Home implementation against `UmaHomeAvatar.cs` at `8c19b5f7`, temporarily replacing
+only that source file. This isolates the Home lifecycle extraction; it is not a rollback of all
+Phase 1 changes. Current source was backed up and restored byte-for-byte. No vendor, catalog,
+prefab, recipe, presentation or XR settings were changed for the comparison.
+
+Each run used Desktop from LoginScene, the same saved UMA recipe, a script-domain reload and
+unused-asset unload. Before every run, inspection confirmed zero loaded UMAAssetIndexer objects.
+Current runs had one VertexFormHomeAvatar and one puppet; pre-extraction runs had no new host
+and one puppet. All five captures completed successfully. The Editor stayed in one process;
+Windows storage caches were not flushed. These are unloaded-asset Editor repeats, not controlled
+cold-process or standalone-headset benchmarks.
+
+| Order / implementation | Home build request to ready | DCA synchronous `Loading.ReadObject` | Render-thread texture upload | Capture suffix |
+| --- | ---: | ---: | ---: | --- |
+| 1 — current | 11.565 s | 2.971 s | 8.061 s | `132843` |
+| 2 — pre-extraction | 10.822 s | 2.359 s | 7.797 s | `133058` |
+| 3 — pre-extraction | 12.953 s | 5.075 s | 7.447 s | `133617` |
+| 4 — current, measurement-contaminated | 17.721 s | 7.011 s | 7.708 s | `133916` |
+| 5 — current, no Editor query during loading | 10.355 s | 2.279 s | 7.370 s | `134238` |
+
+Run 4 is retained rather than discarded silently: a premature capture-status query added
+2.268 s of Editor bridge work in profiler frame 2 while the avatar was still building. Its slow
+frame also contains a 3.234 s UMA Editor callback, mostly an AssetDatabase lock wait, and slower
+synchronous reads. Do not subtract these measurements to manufacture a corrected result or
+use this run as a clean comparison. Run 5 waited for the SUCCESS line in the disk log before
+querying the Editor. Normal login tooling occurs in every captured startup frame; the largest
+whole-Editor frame is not an avatar-only timing. Thread timings overlap and must not be summed.
+
+All runs read approximately 1.269 GB across the capture. Matched first-pair captures differ by
+only 528 bytes in total reads and both have 314 texture-upload calls in the slow frame; the
+second pair has 415 calls each, reflecting different captured frame grouping. This does not
+prove every uploaded texture belongs to UMA, but it gives no evidence of duplicated bulk asset
+loading caused by the Home extraction.
+
+**Finding:** no consistent Home-extraction slowdown was reproduced under these Desktop
+conditions. Uncontaminated current results (10.4–11.6 s) overlap pre-extraction results
+(10.8–13.0 s); this small same-process comparison cannot rule out a cold/VR regression or a
+regression elsewhere in the separation work. E3 remains OPEN. The substantial synchronous
+asset/reference load and texture upload are reproduced in both implementations. Next investigate
+the index dependency/texture set before choosing prewarming, smaller startup content or async
+loading. A device build must separately measure first launch, same-session reuse and app restart;
+do not claim a persistent cache or a performance fix yet.
+
+Evidence: `Logs/HomeAB-20261001/timing.txt`, `tool-results.json`, `before-hashes.json`,
+`after-hashes.json`, source backups and staged-scope snapshots; raw captures and matching
+`.analysis.txt` files are under `Library/GHAProfiles/20261001-<suffix>-*`. The five raw captures
+are 62,058,005 / 62,144,723 / 61,044,576 / 87,915,262 / 60,797,970 bytes respectively.
+The supported CLI timed out; fallback used freshly listed/selected AnkleBreaker instance 7896
+for this exact project. Final state: current source restored, compilation has zero errors,
+stopped in LoginScene, profiling stopped/disarmed. All 12 guarded source/meta/content/settings
+hashes are unchanged. Existing staged scope remains unchanged; nothing staged, committed or
+pushed by this comparison. No owner retest is needed to repeat these Editor observations.
+
+Desktop comparison completed at 13:14 UTC. The owner set VertexForm presentation to Desktop
+and disabled XR startup for both Windows and MetaQuest; restore the appropriate target's XR
+startup before a later headset build/run. Raw file
+`Library/GHAProfiles/20261001-131354-551-owner-login-20261001-131354.raw` is 225,755,587 bytes,
+finished with SUCCESS, and has profiler indices 0–1505. The matching `-analysis.txt` covers
+the slow avatar frame 1474; filtered events are in
+`Logs/VRFirstLoad-20261001/captured-desktop-timing.txt`. Recorder is stopped and disarmed.
+
+| Measurement | Captured VR repeat | Captured Desktop repeat |
+| --- | --- | --- |
+| Avatar build request to ready | 10,198.2 ms | 9,335.5 ms |
+| Slow main-thread frame | 9,127.739 ms | 9,192.237 ms |
+| DCA startup | 2,286.279 ms | 2,221.029 ms |
+| DCA's synchronous asset-read subtree | 2,201.968 ms | 2,145.039 ms |
+| Render-thread texture upload | 7,082.474 ms | 6,677.409 ms |
+
+Desktop main-thread wait is 6,088.932 ms under `MainToolbarWindow.Paint > Semaphore.WaitForSignal`,
+while the render thread uploads textures. VR's wait appears under XR frame submission instead.
+The same broad loading/upload costs occur in both modes; XR is not required to reproduce this
+Editor stall. Event-marker placement differs: Desktop reaches CharacterBegun in the same game
+frame, with the long delay afterward; VR reaches that event on the following frame. The CPU
+hierarchy prevents incorrectly attributing the Desktop interval entirely to character generation.
+These are sequential captures in the same editor process, not controlled cold-start comparisons
+or standalone-device evidence. No fix or claim of equivalent headset-build performance follows.
+The next decisive performance check is a development build on the actual headset, including
+first launch, same-session reload and app restart. No additional owner Editor repeat is needed
+for this comparison. Left the current Desktop Home session running; no Git actions occurred.
+
+Successful repeat capture at 13:08 UTC: raw file
+`Library/GHAProfiles/20261001-130815-678-owner-login-20261001-130815.raw`, 86,346,453 bytes,
+finished with SUCCESS and automatically disabled profiling/binary logging and disarmed.
+Inspected while the owner remained in Home Play Mode; selected slow-frame report is the matching
+`-analysis.txt`, with filtered events in `Logs/VRFirstLoad-20261001/captured-vr-timing.txt`.
+The capture spans 461 profiler frames; the initial avatar took 10,198.2 ms. It is a repeat in
+the same editor process, not a controlled fresh-editor or standalone cold-load measurement.
+
+| Captured cost | Evidence |
+| --- | --- |
+| Longest measured main-thread frame | Profiler frame 428: 9,127.739 ms |
+| DCA startup | 2,286.279 ms; `Loading.ReadObject` child 2,201.968 ms |
+| Index identity | Raw sample 2585 metadata: `MonoBehaviour: AssetIndexer`, object `AssetIndexer`, serialized file index 10350, local identifier 11400000 |
+| Main-thread render wait | `FrameEvents.XRBeginFrame > Gfx.WaitForRenderThread`: 6,771.186 ms |
+| Render-thread work in the same frame | `Gfx.UploadTexture`: 7,082.474 ms across 231 calls; child `Gfx.UploadTextureData`: 6,957.935 ms across 2,497 calls |
+
+The two threads overlap: do not add render-thread upload time to the main-thread wait as separate
+wall-clock costs. This attributes the previously unexplained approximately 6.9-second gap in
+this capture to texture upload/render synchronization, rather than a calibration timer or seven
+seconds of avatar mesh generation. Exact texture identities and why all were resident remain
+to be audited. The index load dropped from the earlier 13–16 seconds to 2.2 seconds; cache state
+is a plausible contributor, not an isolated causal measurement. No runtime performance fix was
+applied. Existing large library/reference loading remains relevant alongside GPU upload cost.
+
+Stopped Play using prior authorization and verified LoginScene with the recorder rearmed for
+the owner's Desktop comparison; platform selection is left to the owner. The owner proposes
+an eventual build-and-run on the headset: treat development-player/device measurements as the
+standalone gate and compare first launch, same-session reload, and a fresh app launch separately.
+No build or platform-performance result is yet claimed. Current evidence shows same-session
+reuse, not a persistent avatar cache guaranteeing fast startup after an app restart.
+
+Capture follow-up result: the raw file `20261001-130054-860-owner-login-20261001-130054.raw`
+is 24,218,652 bytes, but records only an aborted 3.53-second run ending with
+`result=PLAY_MODE_ENDED`; it is **not** a CPU recording of the subsequent slow Home build.
+The next run at 13:03–13:04 UTC was unarmed and its event logs show XR readiness 1,136.8 ms,
+avatar build 21,792.9 ms, a 13,561.2 ms same-frame DCA startup gap and 7,166.2 ms from recipe
+update to generation beginning. Evidence: ignored `Logs/VRFirstLoad-20261001/repeat-timing.txt`.
+No CPU attribution was derived from the aborted file. The diagnostic's original one-shot
+arming was consumed too early; this limitation was explained to the owner.
+
+Using existing stop/restart authorization, stopped Play and corrected the diagnostic so
+interrupted runs retain the arm request; only successful Home completion clears it. Verified
+zero compile errors, stopped clean LoginScene, VR presentation, profiler currently off, and
+`IsArmed=true`. The next owner VR attempt is ready; successful full recording and persistence
+through an actual interrupted retry remain to be observed. CLI again timed out; the exact GHA
+AnkleBreaker instance remained selected at port 7896. No new staging/commit/push occurred.
+
+Follow-up capture preparation: the owner selected **VR first, then Desktop**. Added the explicit
+Editor-only `GhaOneShotAvatarProfile` diagnostic: arming persists across the Play Mode domain
+reload, starts the existing raw profiler on entry to Play, and restores profiler settings three
+frames after the first Home avatar completes (or on timeout/Play exit). It does not log in or
+change Play Mode itself. Compilation has zero errors, LoginScene is stopped, presentation is VR,
+deep profiling is disabled, and `IsArmed=true` was verified. The next owner Play is ready to
+capture; no new capture result is yet claimed. Primary CLI editor status also timed out, so
+AnkleBreaker was used after listing and selecting the exact GHA instance on port 7896. The
+diagnostic and metadata remain unstaged. Re-arm separately before Desktop; record editor/cache
+history so a warm repeat is not mislabeled a controlled cold-start comparison.
+
+The owner reports a 20–25-second initial VR avatar delay and headset hourglass, while head
+movement continued; the subsequent Ocean Villa avatar appeared quickly. This explicitly
+resumes targeted investigation of the observed delay, without upgrading UMA or changing the
+agreed separation sequence. CLI Console requests timed out after 30 seconds, so evidence was
+read from the local Unity `Editor.log`; no editor restart or Play Mode change was made.
+Filtered evidence is retained in ignored `Logs/VRFirstLoad-20261001/editor-timing.txt`.
+
+The successful headset run is at 12:16–12:17 UTC. An earlier 12:14 Home attempt remained at
+`no-running-xr-input-subsystem`; do not combine those attempts into one timing measurement.
+
+| Interval | Initial Home | Ocean Villa |
+| --- | --- | --- |
+| XR readiness wait | 1,193.2 ms, frames 319–350 | 2,058.7 ms, frames 1355–1373 |
+| Avatar build request to ready | 24,595.3 ms, 12:16:05.398–12:16:29.992 UTC | 603.0 ms, 12:17:09.665–12:17:10.268 UTC |
+| DCA initialization event to build-character-begun | 15,785.6 ms, both on frame 350 | About 1.3 ms, frame 1373 |
+| Recipe updated to character generation begun | 7,643.8 ms, frames 350–351 | 25.4 ms, frames 1373–1374 |
+
+The same-frame 15.8-second startup interval confirms a stalled application frame, consistent
+with the reported hourglass. Continued headset movement does not establish that application
+frames were advancing. The additional 7.6-second interval is not attributed by these markers;
+do not call all of it mesh generation or attribute it entirely to UMA without a fresh profile.
+The diagnostic `unattributedWaitOrPreprocessMs` is a coarse residual, not a CPU profiler sample.
+
+Earlier September 4 profiling already established an 18.46-second synchronous AssetIndexer
+and referenced-asset load under `DynamicCharacterAvatar.Start`, before the September 27 Home
+lifecycle extraction. See `Logs/MetaOpenXR-Fix-2026-09-04/UMA-PROFILE-FINDINGS.md` and the raw
+capture/report in `Library/GHAProfiles`. Its full frame was 25.29 seconds and included a separate
+editor wait. This is historical evidence of the failure class, not a profile of today's run.
+First-use asset loading is the leading explanation for slow Home followed by fast world builds.
+The September 27 Desktop result was not a controlled cold-start comparison, so VR-specific
+causation and absence of a Desktop cold-load stall remain unproven. Do not dismiss the owner's
+regression report or claim the recent changes have been exonerated by this comparison alone.
+
+Both avatars reached two renderers, a ready Animator, arm IK and locked calibration using the
+saved 1.630 m height. The owner-observed fast world appearance adds successful evidence for that
+case; it does not close A5's seated-start/tracking/visibility matrix. The earlier 28.65-second
+post-build calibration wait is a distinct failure. Eight pointer errors recur around world spawn
+and authority setup; A4 remains open independently of the initial-load stall.
+
+Next focused verification: capture the initial load's raw CPU hierarchy in a fresh VR run and
+a comparable cold Desktop run, including the 7.6-second interval, and identify the specific
+loaded assets/editor waits. Reuse the existing explicit profiler tooling; avoid broad repeated
+feature tests. If the index-loading cause is confirmed, reassess the existing catalog-scoped
+index/local asynchronous-loading plan in `Logs/UMA-Streaming/IMPLEMENTATION-PLAN.md` against the
+current two-race catalog and installer changes. Its September 4 one-race/76-record audit is not
+a current content manifest. No performance fix, vendor modification, staging or commit occurred.
+
+### October 1 owner decision — UMA 3.1 migration at the final release gate
+
+Continue separation and functional work with the currently pinned UMA baseline. The owner
+reports UMA 3.1f1 released and a 3.1f2 bug fix under development; these release details have not
+been independently verified in this documentation-only update. Select and verify the actual
+3.1 patch when migration begins, rather than upgrading now.
+
+Added **P5-4** to Phase 5 and §9 of `GHA-IMPLEMENTATION-PLAN.md`: after separation and a working
+current-version baseline, migrate the integration to a reviewed UMA 3.1 patch **before inviting
+additional testers or public release**. Preserve the baseline, review API/content/shader changes,
+update pins and compatibility records, rebuild the Global Library, verify saved-avatar
+compatibility and Desktop/VR/network behavior, then regenerate and revalidate installable
+packages and guides. Prior version evidence does not close the upgraded release's gates.
+P5-3 publication depends on P5-4. Existing IDs and Phases 0–5 remain; the parent-item count is
+now 46 (previously 45). Re-review this gate with the owner when it is reached.
+
+The owner intends to test VR next; no new VR result is implied. No Unity state, UMA installation,
+source pin or runtime code changed, and no new staging, commit or push occurred.
+
+### September 27 Phase 1 D1 Home lifecycle slice — PROVISIONAL
+
+The owner directed proceeding with the discussed work. Read the linked static-avatar discussion
+at Phase 1 entry: use a prepared, imported Humanoid model with fixed appearance, normal
+animation/tracking, stable model identity and explicit first-person head visibility. The full
+static-avatar plugin remains later work; no RPM asset was copied or selected. All four required
+Notion pages were retried but inaccessible, so this slice uses inspected repository source.
+
+`VertexFormHomeAvatar` now owns Home startup/readiness, Save/apply, Classic construction,
+presentation and scene-transition teardown. `IHomeAvatarProvider` supplies the optional build,
+instance and teardown seam. `UmaHomeAvatar` retains serialized compatibility fields and public
+UI entry points, lazily constructs its UMA puppet, and preserves unknown mode IDs. Existing
+combined prefabs obtain the host through a compatibility shim; new host installs wire it without
+UMA. UMA installation requires the host Home component first. No scene or prefab was saved.
+The full D3 Home/network registry, network/player extraction and remaining host dependencies in
+the UMA puppet/UI are still pending; this local one-adapter seam is not D1 or C1 completion.
+
+Final compilation succeeded with no errors. `Tools/ValidateGhaHomeLifecycle.cs` passed eight
+Edit Mode checks: queued Classic Save without a UMA adapter, preview/application separation,
+Save listener removal, provider build and transition teardown, provider-to-Classic switching,
+missing-provider fallback preserving the saved ID, idempotent host wiring on a disposable
+prefab copy, and preservation of peer IDs by the installed adapter. Fixtures and preferences
+were restored. Evidence: `Logs/Phase1Home-20260927/edit-mode-validation.json` (ignored).
+This is fixture validation with UMA still installed, not runtime or true package-absence proof.
+Focused Desktop Play Mode approval was requested for the changed path and remains pending.
+The Editor was not put into Play Mode.
+
+Code, new metadata, validation script and this evidence update remain unstaged for review.
+The previously approved 11-file documentation index is retained. No commit or push occurred;
+BUG-3, A5.1 and A5.2 remain deferred.
+
+#### September 27 owner-started run: avatar blocked on XR initialization
+
+The owner manually started the app and reported no avatar and no Console errors.
+Read-only live inspection found HomeScene configured as VR, XR startup enabled but initialization
+incomplete, no active loader/input/display subsystem and no valid tracked headset. The host had
+found the UMA adapter and Classic root; startup was still waiting on the existing XR readiness
+gate, before any UMA puppet/build. Console sequence 930 warns that initialization produced no
+active loader; 949/951 show the Home wait and `no-running-xr-input-subsystem`.
+The same VR startup wait exists in the pre-extraction `UmaHomeAvatar` at HEAD.
+This identifies the immediate blocker, not a successful Phase 1 runtime check or a conclusion
+about the underlying headset/runtime failure. Clarification of Desktop versus PC Link testing
+was requested. No runtime settings, source, assets or Play Mode state were changed.
+Read-only evidence: `Logs/Phase1Home-20260927/missing-avatar-live.json` (ignored).
+
+#### September 27 headset-connected run: owner reports working; first-load delay recorded
+
+The owner reconnected/put on the headset and reported that everything looked good except a slow
+first load. This supersedes the earlier uncertainty about the intended test mode: this was PC
+Link. It is owner-observed Home behavior, not acceptance of every Phase 1/network/Save case.
+Read-only timing evidence from the new run:
+
+| Step | Evidence |
+|---|---|
+| Home XR readiness | 13:38:39.628–13:38:40.704 UTC; 1,076.3 ms, sequences 993–1006 |
+| Initial UMA avatar | 13:38:40.713–13:38:56.732 UTC; 16,019.4 ms, success, two renderers and Animator ready |
+| Largest measured gap | DCA-start initialization to build-character-begun: about 14.35 seconds, both on frame 153; the trace places the stall before that build event but does not attribute it to a particular operation |
+| Later customization preview | 396.9 ms, success, sequences 1046–1048; a different build path, not a controlled warm/cold comparison |
+
+VR arm IK became ready after character creation (sequence 1032). The captured trace does not
+include a completed height-calibration marker; do not convert the owner's general report into
+specific calibration or tracking-recovery acceptance. A `PhotonCloudTimeout` was also logged at
+sequence 1024, after the long frame; its causal relationship to the stall is unproven.
+Keep the slow first load under existing E3 / R9 / BUG-9; no performance fix, runtime setting
+change, restart, commit or push was performed. Evidence:
+`Logs/Phase1Home-20260927/headset-return-timing.json` (ignored, filtered timing/error messages).
+
+#### September 27 Ocean Villa transition — FAILED route acceptance; diagnosis in progress
+
+The owner joined Ocean Villa and reported ten Console errors plus delayed first-person body
+visibility. The prior statement that no further checks were needed was too broad: the eight Edit
+Mode fixtures and observed Home behavior did not verify the Login/Home/world/return route.
+Keep A4/A5 and D1 runtime acceptance open. Do not label these failures harmless or cleared.
+
+The ten errors in this Play session are two earlier Photon authentication/lobby timeout errors
+(1023–1024, 13:38:55 UTC), plus eight `No available indices for pointer registration.` errors:
+four during Fusion player instantiation (1251–1254) and four in
+`XRRigController.ApplyMultiplayerPlatformAndAuthority` (1294–1297). These are separate from old,
+already-corrected compile errors retained in Pipeline's historical Console buffer.
+
+Read-only inspection confirms that RoomManager actually spawns
+`NewGenericMRDesktopPrefab.prefab` for this VR session. It has 12 authored-active, UI-enabled
+hand/controller NearFar/Poke interactors, while installed XRI's `XRUIToolkitHandler` has eight
+slots. Its modality manager starts disabled. `XRRigController` then activates the hand roots in
+`VRObjects` before enabling the modality manager. The two activation points match the two
+four-error bursts. After settling, six live controller pointers are registered; the hand pointers
+and temporary rig are inactive, and there are no destroyed registry entries in the captured state.
+No UI Toolkit documents were loaded. Do not patch vendor/package-cache code or simply raise the
+pointer limit: correct ownership/activation of local hand/controller groups and remote rigs.
+
+World avatar construction itself finished in 523.9 ms at 13:40:10.409 UTC, following 2.082 s of
+XR readiness. Both renderers remained on the hidden layer until height calibration locked at
+13:40:39.061 (eye height 1.630 m, scale 0.889): an additional 28.65 s hidden after construction.
+This is a readiness/visibility defect to investigate under A5, separate from E3's first Home
+load stall. Preserve the documented seated-start behavior (authored/locked scale until valid
+standing calibration), and verify saved calibration reuse and Home/world handoff.
+
+The network bridge/puppet, calibration/alignment code, RoomManager and XRRigController have no
+uncommitted source changes relative to HEAD. The used prefab's existing diff only removes four
+null AR references. This narrows direct changes but does not prove absence of a timing regression;
+a controlled comparison and full route verification remain outstanding.
+
+Evidence is under ignored `Logs/Phase1Home-20260927/`: `scene-transition-errors.json`,
+`scene-transition-timeline.json`, `world-visibility-timing.json`, `world-pointer-state.json`
+and `active-player-prefab-pointer-setup.json`. The earlier `vr-prefab-pointer-setup.json`
+inspects the similarly named VR prefab, not the one used by this run.
+No runtime code/settings or Play Mode changes were made during diagnosis. Permission to stop
+and restart Play Mode for correcting/verifying these failures was requested under AGENTS.md;
+it was subsequently granted with a preference for Desktop testing, as recorded below.
+No new staging, commit or push occurred during diagnosis.
+
+#### September 27 owner-authorized Desktop switch and restart
+
+The owner explicitly authorized stopping/restarting as required and requested Desktop testing
+because the headset is needed elsewhere. Stop/start permission remains available for this
+testing work; do not ask again for the same authorized scope. Desktop is the current test mode.
+The VR pointer/calibration defects remain open and require later headset validation.
+
+Stopped the VR session using Unity CLI. Through Editor APIs, saved Platforms.platformChoice as
+Desktop and disabled Initialize XR on Startup for Standalone only
+(`Assets/XR/XRGeneralSettingsPerBuildTarget.asset`); Android settings remain unchanged.
+`SceneLoader` previously requested XR startup unconditionally at login and world transition.
+A narrow source change now skips both requests for Desktop-style presentation, so a Desktop
+session does not acquire the headset. This core change is separately reviewable and unstaged.
+Compilation succeeded with no errors. All four required Notion pages were retried but inaccessible.
+
+Restarted from LoginScene, used the normal login action with the existing saved name and verified
+HomeScene in Desktop mode: host and UMA avatar ready, two renderers, Animator ready, no XR loader,
+input/display subsystem or VR readiness wait. Avatar build was 3,086.6 ms; no new captured errors
+since console cursor 1519 through this Home check. This verifies Desktop startup/Home only;
+world transition, return Home and affected Save checks are still pending. The app is left running
+in Desktop Home for the owner. Evidence: `desktop-home-state.json` and
+`desktop-home-console.json` under ignored `Logs/Phase1Home-20260927/`.
+
+Headset review: the project's Meta Quest target list includes Quest 2, Quest 3 and Quest 3S.
+No Quest-3-only requirement was found in the avatar integration. Quest 2 is supported by
+[Meta Link](https://developers.meta.com/horizon/documentation/unity/unity-link/) and is a suitable
+candidate for later PC Link checks; this is not device-specific acceptance of our app or its
+standalone performance. Optional Android Meta Quest Occlusion is enabled with required=false;
+its environment-depth extension targets Quest 3 and later according to
+[Meta's OpenXR feature table](https://github.com/meta-quest/Meta-OpenXR-SDK).
+That optional mixed-reality feature is outside ordinary Desktop/VR avatar testing.
+No vendor changes, package changes, new staging, commits or pushes were made.
+
+#### September 27 Desktop world observations — functional behavior good; pointer errors remain
+
+The owner reports everything working with no noticeable delays in Desktop, except the pointer
+registration errors. Read-only inspection confirms Ocean Villa is active in Desktop mode, with
+XR startup disabled, no active loader and no input/display subsystems. This verifies that the
+Desktop world transition did not initialize XR. Return Home was not separately confirmed.
+
+Console inspection since the Desktop run's cursor 1519 returned exactly four errors through
+cursor 1928: `No available indices for pointer registration.`, sequences 1780–1783 at
+14:49:09.084–.086 UTC. All four stacks originate in Fusion player prefab instantiation through
+`RoomManager.SpawnVRPlayer`. This matches the previously inspected 12 authored-active
+interactors competing for eight slots before platform/authority setup runs in `Start`.
+The pointer defect is therefore shared by Desktop and VR; A4 remains open despite otherwise
+successful owner-observed Desktop behavior. No runtime fix was made during this inspection.
+
+The earlier VR first-load stall and delayed body visibility remain unresolved under E3/A5.
+Desktop success does not establish VR timing or readiness acceptance; headset retesting remains
+later work. All four required Notion documentation pages were retried and remain inaccessible.
+Only this runbook and the implementation plan were updated; Play Mode was left running, and
+no new staging, commit or push occurred.
+
+### September 26 prior owner checks accepted; duplicate testing withdrawn
+
+The owner confirmed avatar editing and saving were already tested successfully when implemented
+and directed proceeding without repeating those checks. Use this as prior owner baseline
+verification, alongside the recorded Desktop tests and September 24 PC Link observations.
+No fresh edit/Save run is required for the unchanged baseline; repeat affected checks only after
+relevant implementation changes or a newly observed failure. This supersedes the September 24
+request for another edit/Save pass, without inventing results for distinct unreported checks such
+as controlled tracking recovery or VR-to-Desktop arm handoff. A5.1/A5.2 remain deferred.
+Documentation review, separate local-commit approval and the next-phase scope review remain in
+effect. No runtime changes, commits or pushes were made as part of this decision.
+
+### September 24 PC Link observations and deferred comfort fixes
+
+The owner entered Play Mode manually with the headset connected. Initial UMA Home observation
+found about a 12-second gap between avatar construction/mirror visibility and first-person body
+visibility. Console evidence identifies height-calibration readiness as the remaining gate; the
+owner then confirmed the body was properly visible. This is partial A5 evidence, not full PC Link
+acceptance. See the [dated baseline findings](GHA-SEPARATION-BASELINE-2026-09-23.md#september-24-pc-link-observations--partial-a5-evidence).
+
+The owner explicitly requested two later fixes, now tracked in the implementation plan:
+A5.1 for arms intersecting the torso, and A5.2 for a viewpoint that feels too far back inside the
+body, exposing too much upper chest when looking down. Assess arm fit/IK and avatar-eye alignment
+later; no fix or camera offset change was made. The owner reported the remaining observed
+behavior seemed okay. Save/rebuild, controlled tracking recovery, return-to-Desktop arms and
+restoration still need explicit results. The initial calibration delay remains an open finding;
+BUG-3 walking retains its separate deferral. No commit or push is authorized by these observations.
+
+### September 23 Phase 0 inventory and Desktop baseline
+
+The owner authorized proceeding with the current plan, explicitly approved Desktop Play Mode
+checks, and prohibited pushes; any approved commits remain local. Exact inventory, reviewed
+scope and evidence: [separation baseline](GHA-SEPARATION-BASELINE-2026-09-23.md).
+
+Read-only upstream verification found official Master still at `58bf4e775653c8befbc6d36584742360dbc7033a`.
+GHA remains at `8c19b5f7`; no merge, package upgrade or Git mutation was performed. Classified
+101 existing working-tree entries and 232 committed paths relative to upstream. The installed
+Pipeline record is `0.6.0-exp.1`; the older 0.5.0 record below remains historical. All four required
+Notion pages were inaccessible again.
+
+Three approved Desktop sessions from LoginScene exercised Classic preview/Next/Save, Male to
+Female to Male, saved height DNA, repeated Save/rebuild visibility, close/reopen, and separate
+UMA/Classic restart persistence. Both modes reconstructed the saved Home body. UMA height 0.65
+encoded to 166/255 and reconstructed as 0.6509804. Rebuild renderers retained hidden layer 7.
+There were zero new captured Console errors (cursor 258 through 493); compile status was clean
+and the final recompile request was up to date. These were one-shot Button/Slider event checks,
+not mouse-input, walking, PC Link, network or UMA-absence acceptance.
+
+Original avatar/login preferences and temporary in-memory XR startup changes were restored and
+verified. Editor returned to stopped, clean LoginScene. All 98 hashed pre-existing nonsensitive
+working-tree files were unchanged after testing, before this evidence update. No implementation,
+asset save, vendor modification, staging, commit or push occurred. The baseline report proposes
+an exact 11-file documentation-only local checkpoint for owner approval.
+
+Subsequent owner instruction: stage only the proposed 11 documentation files for review; do not
+commit until the owner reviews and separately approves. BUG-3 walking investigation is deferred
+until later because the owner, despite observing it and receiving another person's report, cannot
+reliably reproduce it. The defect remains unresolved; capture evidence if it recurs. General
+locomotion acceptance is not closed by this deferral.
+
+Owner phase-by-phase plan review is now recorded: Phases 0–3 and Phase 5 approved; Phase 4
+conditionally accepted. Re-review each upcoming phase when its predecessor is complete, before
+starting that phase. The current plan has six phases numbered 0–5; later/deferred work remains
+in its register. The numbered migration phases farther below are historical and are not an
+additional Phase 6 for the current separation plan.
+
+Phase 0 remains open for PC Link evidence and documentation/inventory review plus separate local
+commit approval. Desktop baseline P0-3 is complete within its recorded scope. Read-only readiness
+recheck found the exact GHA Editor ready, compilation up to date with no errors, and no newly
+captured errors since cursor 493 (current cursor 494). No new Play Mode session was run.
+At that September 23 checkpoint, Phase 1 runtime extraction had not begun; the September 27
+entry above records the first source slice. The broader runbook matrix and all remaining
+roadmap/defect items stay tracked.
+
+For D2, the owner defines static avatars as fixed in appearance, with animation/tracking and
+other supported embodiment behavior retained. At the Phase 1 entry review, read the
+[related discussion](codex://threads/01a0c97b-c915-7b41-8020-2c62d65371d2) and assess the local RPM
+model candidates recorded in the implementation plan. Their files were located in the retired
+RPM reference project; Unity/GHA compatibility is not yet accepted. Retain reusable proof code
+for the later full static-avatar package without making that product a prerequisite to UMA.
+
+Phase 3 exports/tests the GHA Host and GHA UMA Integration packages; UMA is acquired separately.
+An explicitly approved integration release may use the verified temporary host package before
+upstream acceptance. All commits remain local under the owner's current instruction; approval
+of plan content does not authorize a commit, push or publication.
+
+### September 23 separation plan and installation-source policy
+
+The [implementation plan](GHA-IMPLEMENTATION-PLAN.md) now sequences the next work. This runbook
+remains authoritative for ownership, evidence and acceptance status. Earlier migration phases and
+dated findings remain historical evidence; they do not require replaying commits or executing an
+older packaging sequence. No runtime gate is closed by this documentation revision.
+
+- Finish host/provider separation in the combined project before splitting working copies.
+  Shared Home/player lifecycle and Classic Save must move out of UMA; runtime provider
+  registration, host contracts and a minimal non-UMA Humanoid proof are prerequisites.
+- Keep the generic host contribution in this VertexForm fork. Maintain UMA integration code,
+  export tooling and developer scripts in a separate VertexForm working copy. Another branch
+  in this fork is sufficient; final repository/branch names and visibility remain owner choices.
+  No separate standalone GHA UMA repository is required. A custom UMA fork is only for UMA changes.
+- Preserve the combined baseline and development history. Use ordinary refactoring/removal
+  commits; no required cherry-picking, replay, rebase or force push.
+- Prefer UMA from the Unity Asset Store, then an official GitHub release package, then a local
+  source checkout. Preserve `Tools/Sync-Uma.ps1` and the developer route. Package users must not
+  require a UMA checkout. These are explicit alternatives, never automatic fallbacks.
+- Pin and validate the actual distribution artifact, supported host and integration versions.
+  Asset Store and release-package acceptance remains pending; the source pin and its shader
+  repairs do not prove those artifacts work. One installed UMA distribution per project.
+- Keep all remaining architecture R1–R15 and BUG-1–BUG-12 work tracked. The plan separates
+  pre-split blockers from later product work; release claims require the applicable platform,
+  network and installation gates. It does not authorize dropping existing migration requirements.
+
+Read-only inspection found HEAD and the locally tracked GHA remote reference at
+`8c19b5f773985b71045df92337fc107595512d56`, including `26ae0783` and `8a8c86ff`.
+This is local reference evidence, not a fresh remote publication check. The September 18
+"not yet pushed" statement below describes that earlier checkpoint.
+
+This revision edits documentation only. No runtime code, package version, scene, prefab, branch,
+staging area or publication was changed. Existing owner edits, including removal of
+`com.unity.collab-proxy` and local platform/serialization changes noted below, remain untouched.
+Before implementation, inventory those changes and obtain scoped checkpoint approval; never
+include credentials, ignored UMA vendor content, generated state or unrelated work.
+
 ### September 18 documentation split, packaging decision and Home fixes
 
 Documentation: `GHA-GETTING-STARTED.md` was renamed `GHA-developer-getting-started.md` (source-clone
@@ -95,7 +866,8 @@ workflow for contributors) and a draft `GHA-getting-started.md` describes the in
 user installation. `Packages/com.vertexform3d.gha/Documentation~/ARCHITECTURE.md` was brought up to
 date (retitled for GHA; current-implementation inventory; July–September status history; roadmap
 R1–R15 for every undelivered design commitment; known-defect register BUG-1–BUG-12).
-`GHA-IMPLEMENTATION-PLAN.md` sequences that work in five phases and is awaiting owner review.
+At that date, `GHA-IMPLEMENTATION-PLAN.md` sequenced that work in five lettered phases awaiting
+owner review. The September 23 numbered phases and review decisions above supersede that sequence.
 
 Packaging decision (owner, September 18): developers build from source with both upstream
 repositories; the GHA host layer is to be contributed upstream to VertexForm3D; `.unitypackage`
@@ -126,8 +898,22 @@ desktop in the Editor and confirmed resolution):
   trace `avatar-0004`, where earlier sessions stopped at `UMA_CHARACTER_BEGUN`.
 
 Compilation passed with zero errors after each change (Unity CLI `recompile_status`). Play Mode was
-driven by the owner; the agent performed read-only Console and scene inspection only. Nothing was
-staged, committed or pushed.
+driven by the owner; the agent performed read-only Console and scene inspection only. Committed with
+owner approval as `26ae0783` (docs), `8a8c86ff` (gha-uma fixes) and `8c19b5f7` (gha fix); not pushed.
+
+Owner-directed project change, uncommitted: `com.unity.collab-proxy` (Unity Version Control) was
+removed from `Packages/manifest.json`. Reason: it fixes or works around a bug where the Android SDK
+ends up reported as version 0. Keep it removed; do not restore it when reconciling the manifest or
+lock with upstream.
+
+Serialization caveat found September 18: `NewGenericMRDesktopPrefab.prefab` lost the four
+`MixedRealityHandler` fields `arCameraManager`, `cameraBackground`, `ARsession`, `arPlaneManager`
+when the Editor re-saved it at 10:48 that day. Those fields are declared under `#if !UNITY_WEBGL`,
+so with the WebGL build target active the compiled script has no such fields and Unity drops them on
+save. All four were null references, the VR prefab (last saved September 7) still has them, and a
+save under any non-WebGL target restores them. Harmless to the prefab's behavior, but do not commit it
+as GHA work, and run the GHA installers (which save both player prefabs) under a non-WebGL build
+target to avoid the same churn on fresh installs.
 
 ### September 7 UMA installer catalog-reference recovery
 
